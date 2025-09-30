@@ -1,0 +1,9 @@
+﻿{% extends "base.html" %}
+{% block content %}
+<h1>Reenviar confirmação</h1>
+<form method="post" novalidate class="form-compact">
+    {{ form.hidden_tag() }}
+    <label>{{ form.email.label }} {{ form.email(size=40) }} {{ form.email.errors[0] if form.email.errors }}</label>
+    {{ form.submit(class_='btn-primary') }}
+</form>
+{% endblock %}

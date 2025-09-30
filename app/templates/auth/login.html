@@ -1,0 +1,12 @@
+﻿{% extends "base.html" %}
+{% block content %}
+<h1>Entrar</h1>
+<form method="post" novalidate class="form-compact">
+    {{ form.hidden_tag() }}
+    <label>{{ form.email.label }} {{ form.email(size=40) }} {{ form.email.errors[0] if form.email.errors }}</label>
+    <label>{{ form.password.label }} {{ form.password(size=32) }} {{ form.password.errors[0] if form.password.errors }}</label>
+    <label class="checkbox">{{ form.remember() }} Lembrar-me</label>
+    {{ form.submit(class_='btn-primary') }}
+</form>
+<p><a href="{{ url_for('auth.resend_confirmation') }}">Reenviar confirmação</a></p>
+{% endblock %}

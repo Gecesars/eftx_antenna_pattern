@@ -1,0 +1,24 @@
+﻿{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+    <h1>Projetos de Antenas EFTX</h1>
+    <p>Projete composições verticais e horizontais, calcule ERP 0º-359º e exporte padrões profissionais.</p>
+    {% if not current_user.is_authenticated %}
+    <a class="btn-primary" href="{{ url_for('auth.register') }}">Comece agora</a>
+    {% endif %}
+</section>
+<section class="portfolio">
+    <h2>Portfólio de Antenas</h2>
+    <div class="grid">
+        {% for antenna in antennas %}
+            <article class="card">
+                <h3>{{ antenna.name }}</h3>
+                <p>{{ antenna.description or "Sem descrição" }}</p>
+                <span>Ganho nominal: {{ '%.1f'|format(antenna.nominal_gain_dbd or 0) }} dBd</span>
+            </article>
+        {% else %}
+            <p>Nenhuma antena cadastrada.</p>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

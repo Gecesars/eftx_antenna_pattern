@@ -1,0 +1,48 @@
+﻿{% set title = title or "EFTX Antenna Composer" %}
+<!doctype html>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <script defer src="{{ url_for('static', filename='js/designer.js') }}"></script>
+</head>
+<body>
+<header class="topbar">
+    <div class="brand">
+        <a href="{{ url_for('public.home') }}" class="brand-logo">
+            <img src="{{ url_for('static', filename='img/eftx-logo.svg') }}" alt="EFTX logo">
+        </a>
+        <span>{{ brand.tagline }}</span>
+    </div>
+    <nav>
+        {% if current_user.is_authenticated %}
+            <a href="{{ url_for('projects.dashboard') }}">Projetos</a>
+            {% if current_user.is_admin %}
+                <a href="{{ url_for('admin.dashboard') }}">Admin</a>
+            {% endif %}
+            <a href="{{ url_for('auth.logout') }}">Sair</a>
+        {% else %}
+            <a href="{{ url_for('auth.login') }}">Entrar</a>
+            <a href="{{ url_for('auth.register') }}">Cadastro</a>
+        {% endif %}
+    </nav>
+</header>
+<main class="container">
+    {% with messages = get_flashed_messages(with_categories=True) %}
+    {% if messages %}
+        <ul class="flash">
+            {% for category, message in messages %}
+                <li class="{{ category }}">{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+</main>
+<footer class="footer">
+    <p>&copy; {{ 2025 }} EFTX Telecom</p>
+</footer>
+</body>
+</html>

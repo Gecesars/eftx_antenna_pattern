@@ -1,0 +1,23 @@
+﻿{% extends "base.html" %}
+{% block content %}
+<h1>Padrões da antena {{ antenna.name }}</h1>
+<section>
+    <h2>Importar</h2>
+    <form method="post" enctype="multipart/form-data" class="form-compact">
+        {{ form.hidden_tag() }}
+        <label>{{ form.pattern_type.label }} {{ form.pattern_type() }}</label>
+        <label>{{ form.file.label }} {{ form.file() }}</label>
+        {{ form.submit(class_='btn-primary') }}
+    </form>
+</section>
+<section>
+    <h2>Padrões existentes</h2>
+    <ul>
+        {% for pattern in antenna.patterns %}
+        <li>{{ pattern.pattern_type.value }} - {{ pattern.angles_deg|length }} pontos</li>
+        {% else %}
+        <li>Nenhum padrão importado.</li>
+        {% endfor %}
+    </ul>
+</section>
+{% endblock %}

@@ -1,0 +1,27 @@
+﻿{% extends "base.html" %}
+{% block content %}
+<h1>Administração EFTX</h1>
+<section>
+    <h2>CNPJs Pendentes</h2>
+    <ul>
+        {% for user in pending_cnpj %}
+        <li>{{ user.full_name }} - {{ user.cnpj }}
+            <a class="btn" href="{{ url_for('admin.toggle_cnpj', user_id=user.id) }}">Alternar verificação</a>
+        </li>
+        {% else %}
+        <li>Nenhum CNPJ aguardando validação.</li>
+        {% endfor %}
+    </ul>
+</section>
+<section>
+    <h2>Antenas recentes</h2>
+    <a class="btn" href="{{ url_for('admin.antennas_create') }}">Nova antena</a>
+    <ul>
+        {% for antenna in antennas %}
+        <li><a href="{{ url_for('admin.antennas_edit', antenna_id=antenna.id) }}">{{ antenna.name }}</a></li>
+        {% else %}
+        <li>Nenhuma antena cadastrada.</li>
+        {% endfor %}
+    </ul>
+</section>
+{% endblock %}

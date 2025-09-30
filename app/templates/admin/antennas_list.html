@@ -1,0 +1,30 @@
+﻿{% extends "base.html" %}
+{% block content %}
+<h1>Antenas EFTX</h1>
+<a class="btn-primary" href="{{ url_for('admin.antennas_create') }}">Nova antena</a>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Nome</th>
+            <th>Modelo</th>
+            <th>Ganho (dBd)</th>
+            <th>Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for antenna in antennas %}
+        <tr>
+            <td>{{ antenna.name }}</td>
+            <td>{{ antenna.model_number or '-' }}</td>
+            <td>{{ '%.1f'|format(antenna.nominal_gain_dbd or 0) }}</td>
+            <td>
+                <a href="{{ url_for('admin.antennas_edit', antenna_id=antenna.id) }}">Editar</a> |
+                <a href="{{ url_for('admin.antennas_patterns', antenna_id=antenna.id) }}">Padrões</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4">Nenhuma antena cadastrada.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

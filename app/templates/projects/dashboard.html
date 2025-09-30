@@ -1,0 +1,27 @@
+﻿{% extends "base.html" %}
+{% block content %}
+<h1>Seus projetos</h1>
+<a class="btn-primary" href="{{ url_for('projects.create') }}">Novo projeto</a>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Nome</th>
+            <th>Antena</th>
+            <th>Frequência</th>
+            <th>Atualizado</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for project in projects %}
+        <tr>
+            <td><a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.name }}</a></td>
+            <td>{{ project.antenna.name }}</td>
+            <td>{{ '%.1f'|format(project.frequency_mhz) }} MHz</td>
+            <td>{{ project.updated_at.strftime('%d/%m/%Y %H:%M') if project.updated_at }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4">Nenhum projeto criado.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

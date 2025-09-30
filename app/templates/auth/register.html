@@ -1,0 +1,26 @@
+﻿{% extends "base.html" %}
+{% block content %}
+<h1>Criar conta</h1>
+<form method="post" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="form-grid">
+        <label>{{ form.full_name.label }} {{ form.full_name(size=40) }} {{ form.full_name.errors[0] if form.full_name.errors }}</label>
+        <label>{{ form.sex.label }} {{ form.sex() }} {{ form.sex.errors[0] if form.sex.errors }}</label>
+        <label>{{ form.email.label }} {{ form.email(size=40) }} {{ form.email.errors[0] if form.email.errors }}</label>
+        <label>{{ form.phone.label }} {{ form.phone(size=20) }}</label>
+        <label>{{ form.address_line.label }} {{ form.address_line(size=40) }}</label>
+        <label>{{ form.city.label }} {{ form.city(size=30) }}</label>
+        <label>{{ form.state.label }} {{ form.state(size=30) }}</label>
+        <label>{{ form.postal_code.label }} {{ form.postal_code(size=16) }}</label>
+        <label>{{ form.country.label }} {{ form.country(size=30) }}</label>
+        <label>{{ form.cpf.label }} {{ form.cpf(size=20) }} {{ form.cpf.errors[0] if form.cpf.errors }}</label>
+        <label>{{ form.cnpj.label }} {{ form.cnpj(size=20) }} {{ form.cnpj.errors[0] if form.cnpj.errors }}</label>
+        <label>{{ form.password.label }} {{ form.password(size=32) }} {{ form.password.errors[0] if form.password.errors }}</label>
+        <label>{{ form.confirm_password.label }} {{ form.confirm_password(size=32) }}</label>
+        <label class="checkbox">{{ form.accept_terms() }} Aceito os termos</label>
+    </div>
+    <div class="form-actions">
+        {{ form.submit(class_='btn-primary') }}
+    </div>
+</form>
+{% endblock %}

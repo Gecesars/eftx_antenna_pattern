@@ -1,0 +1,15 @@
+﻿{% extends "base.html" %}
+{% block content %}
+<h1>{{ 'Editar' if antenna else 'Nova' }} antena</h1>
+<form method="post" novalidate class="form-grid">
+    {{ form.hidden_tag() }}
+    <label>{{ form.name.label }} {{ form.name(size=40) }} {{ form.name.errors[0] if form.name.errors }}</label>
+    <label>{{ form.model_number.label }} {{ form.model_number(size=20) }}</label>
+    <label>{{ form.description.label }} {{ form.description(rows=3, cols=40) }}</label>
+    <label>{{ form.nominal_gain_dbd.label }} {{ form.nominal_gain_dbd(step='0.1') }}</label>
+    <label>{{ form.polarization.label }} {{ form.polarization(size=20) }}</label>
+    <label>{{ form.frequency_min_mhz.label }} {{ form.frequency_min_mhz(step='0.1') }}</label>
+    <label>{{ form.frequency_max_mhz.label }} {{ form.frequency_max_mhz(step='0.1') }}</label>
+    {{ form.submit(class_='btn-primary') }}
+</form>
+{% endblock %}
