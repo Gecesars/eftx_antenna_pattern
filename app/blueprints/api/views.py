@@ -6,7 +6,7 @@ from flask_login import current_user, login_required
 from ...extensions import limiter
 from ...models import Project
 from ...services.pattern_composer import compute_erp
-from ...utils.calculations import total_feeder_loss
+from ...utils.calculations import total_feeder_loss, vertical_beta_deg
 
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -28,6 +28,7 @@ def project_patterns(project_id):
         "connector_loss_db",
         "v_count",
         "v_spacing_m",
+        "v_tilt_deg",
         "v_beta_deg",
         "v_level_amp",
         "v_norm_mode",
@@ -44,6 +45,8 @@ def project_patterns(project_id):
         if field in payload:
             setattr(project, field, payload[field])
     try:
+        project.v_tilt_deg = payload.get('v_tilt_deg', project.v_tilt_deg)
+        project.v_beta_deg = vertical_beta_deg(project.frequency_mhz, project.v_spacing_m, project.v_tilt_deg)
         project.feeder_loss_db = total_feeder_loss(
             project.cable_length_m,
             project.frequency_mhz,

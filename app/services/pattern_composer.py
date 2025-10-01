@@ -7,6 +7,7 @@ from typing import Iterable
 import numpy as np
 
 from ..models import Antenna, PatternType, Project
+from ..utils.calculations import vertical_beta_deg
 
 C_LIGHT = 299_792_458.0
 EPSILON = 1e-12
@@ -107,10 +108,12 @@ def compose_vertical_pattern(project: Project) -> tuple[np.ndarray, np.ndarray]:
     base_angles, base_amp = np.array(vrp.angles_deg, dtype=float), np.array(vrp.amplitudes_linear, dtype=float)
     angles, amp = resample_vertical(base_angles, base_amp)
     wave_num = 2 * math.pi / wavelength_m(project.frequency_mhz)
+    beta_deg = vertical_beta_deg(project.frequency_mhz, project.v_spacing_m or 0.0, project.v_tilt_deg or 0.0)
+    project.v_beta_deg = beta_deg
     af = array_factor(
         count=project.v_count,
-        spacing_m=project.v_spacing_m,
-        beta_deg=project.v_beta_deg,
+        spacing_m=project.v_spacing_m or 0.0,
+        beta_deg=beta_deg,
         level_amp=project.v_level_amp if project.v_level_amp else 1.0,
         wave_number=wave_num,
         angles_rad=np.radians(angles),

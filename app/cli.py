@@ -31,3 +31,15 @@ def register_cli(app: Flask) -> None:
         db.session.add(user)
         db.session.commit()
         click.echo("Admin user created")
+    @users.command("promote-admin")
+    @click.argument("email")
+    def promote_admin(email: str) -> None:
+        user = User.query.filter_by(email=email.lower()).first()
+        if not user:
+            click.echo("User not found")
+            return
+        user.role = "admin"
+        user.email_confirmed = True
+        user.is_active = True
+        db.session.commit()
+        click.echo(f"User {user.email} promoted to admin")

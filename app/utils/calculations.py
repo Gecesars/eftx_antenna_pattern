@@ -2,6 +2,8 @@
 
 import math
 
+C_LIGHT = 299_792_458.0
+
 
 CABLE_DB_PER_100M = {
     "EFTX-RF240": 6.1,
@@ -33,3 +35,15 @@ def total_feeder_loss(
         + (splitter_loss_db or 0.0)
         + (connector_loss_db or 0.0)
     )
+
+
+
+def vertical_beta_deg(frequency_mhz: float, spacing_m: float | None, tilt_deg: float | None) -> float:
+    if not spacing_m or tilt_deg is None:
+        return 0.0
+    freq_hz = max(frequency_mhz, 0.0) * 1_000_000.0
+    if freq_hz <= 0:
+        return 0.0
+    wavelength = C_LIGHT / freq_hz
+    beta_rad = -2.0 * math.pi * spacing_m * math.sin(math.radians(tilt_deg)) / wavelength
+    return math.degrees(beta_rad)

@@ -126,7 +126,12 @@ def antennas_patterns(antenna_id):
         db.session.commit()
         flash("Padrão importado com sucesso.", "success")
         return redirect(url_for("admin.antennas_patterns", antenna_id=antenna.id))
-    return render_template("admin/patterns.html", antenna=antenna, form=form)
+    pattern_previews = [
+        {"id": str(p.id), "type": p.pattern_type.value, "angles": p.angles_deg, "values": p.amplitudes_linear}
+        for p in sorted(antenna.patterns, key=lambda item: item.pattern_type.value)
+    ]
+
+    return render_template("admin/patterns.html", antenna=antenna, form=form, pattern_previews=pattern_previews)
 
 
 @admin_bp.route("/users/<uuid:user_id>/toggle-cnpj")
@@ -140,3 +145,6 @@ def toggle_cnpj(user_id):
         db.session.commit()
         flash("Status atualizado.", "success")
     return redirect(url_for("admin.dashboard"))
+
+
+

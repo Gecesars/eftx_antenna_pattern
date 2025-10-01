@@ -37,7 +37,7 @@ class User(TimestampMixin, BaseModel, UserMixin):
     __tablename__ = "users"
 
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     sex: Mapped[SexEnum | None] = mapped_column(Enum(SexEnum), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(32))
@@ -117,6 +117,7 @@ class Project(TimestampMixin, BaseModel):
     v_count: Mapped[int] = mapped_column(Integer, default=1)
     v_spacing_m: Mapped[float] = mapped_column(Float, default=0.0)
     v_beta_deg: Mapped[float] = mapped_column(Float, default=0.0)
+    v_tilt_deg: Mapped[float] = mapped_column(Float, default=0.0)
     v_level_amp: Mapped[float] = mapped_column(Float, default=1.0)
     v_norm_mode: Mapped[str] = mapped_column(String(16), default="max")
 

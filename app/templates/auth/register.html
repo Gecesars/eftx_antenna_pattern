@@ -1,26 +1,103 @@
 ﻿{% extends "base.html" %}
 {% block content %}
 <h1>Criar conta</h1>
+{% if success_message %}
+<div class="dialog-backdrop" role="alertdialog" aria-modal="true">
+    <div class="dialog">
+        <p>{{ success_message }}</p>
+        <button type="button" class="btn-primary" id="success-dialog-ok" data-redirect="{{ login_url }}">OK</button>
+    </div>
+</div>
+{% endif %}
 <form method="post" novalidate>
     {{ form.hidden_tag() }}
-    <div class="form-grid">
-        <label>{{ form.full_name.label }} {{ form.full_name(size=40) }} {{ form.full_name.errors[0] if form.full_name.errors }}</label>
-        <label>{{ form.sex.label }} {{ form.sex() }} {{ form.sex.errors[0] if form.sex.errors }}</label>
-        <label>{{ form.email.label }} {{ form.email(size=40) }} {{ form.email.errors[0] if form.email.errors }}</label>
-        <label>{{ form.phone.label }} {{ form.phone(size=20) }}</label>
-        <label>{{ form.address_line.label }} {{ form.address_line(size=40) }}</label>
-        <label>{{ form.city.label }} {{ form.city(size=30) }}</label>
-        <label>{{ form.state.label }} {{ form.state(size=30) }}</label>
-        <label>{{ form.postal_code.label }} {{ form.postal_code(size=16) }}</label>
-        <label>{{ form.country.label }} {{ form.country(size=30) }}</label>
-        <label>{{ form.cpf.label }} {{ form.cpf(size=20) }} {{ form.cpf.errors[0] if form.cpf.errors }}</label>
-        <label>{{ form.cnpj.label }} {{ form.cnpj(size=20) }} {{ form.cnpj.errors[0] if form.cnpj.errors }}</label>
-        <label>{{ form.password.label }} {{ form.password(size=32) }} {{ form.password.errors[0] if form.password.errors }}</label>
-        <label>{{ form.confirm_password.label }} {{ form.confirm_password(size=32) }}</label>
-        <label class="checkbox">{{ form.accept_terms() }} Aceito os termos</label>
+    <div class="form-grid form-grid-wide">
+        <div class="form-field">
+            <label for="{{ form.full_name.id }}">{{ form.full_name.label.text }}<span class="required">*</span></label>
+            {{ form.full_name(size=40) }}
+            {% for error in form.full_name.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field">
+            <label for="{{ form.email.id }}">{{ form.email.label.text }}<span class="required">*</span></label>
+            {{ form.email(size=40) }}
+            {% for error in form.email.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field">
+            <label for="{{ form.phone.id }}">{{ form.phone.label.text }}<span class="required">*</span></label>
+            {{ form.phone(size=20) }}
+            {% for error in form.phone.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field form-field-span">
+            <label for="{{ form.address_line.id }}">{{ form.address_line.label.text }}<span class="required">*</span></label>
+            {{ form.address_line(size=40) }}
+            {% for error in form.address_line.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field">
+            <label for="{{ form.city.id }}">{{ form.city.label.text }}<span class="required">*</span></label>
+            {{ form.city(size=30) }}
+            {% for error in form.city.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field">
+            <label for="{{ form.state.id }}">{{ form.state.label.text }}<span class="required">*</span></label>
+            {{ form.state(size=30) }}
+            {% for error in form.state.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field">
+            <label for="{{ form.postal_code.id }}">{{ form.postal_code.label.text }}<span class="required">*</span></label>
+            {{ form.postal_code(size=16) }}
+            {% for error in form.postal_code.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field">
+            <label for="{{ form.country.id }}">{{ form.country.label.text }}<span class="required">*</span></label>
+            {{ form.country(size=30) }}
+            {% for error in form.country.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field">
+            <label for="{{ form.cpf.id }}">{{ form.cpf.label.text }}<span class="required">*</span></label>
+            {{ form.cpf(size=20) }}
+            {% for error in form.cpf.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field">
+            <label for="{{ form.cnpj.id }}">{{ form.cnpj.label.text }}<span class="required">*</span></label>
+            {{ form.cnpj(size=20) }}
+            <small class="help">Informe CPF ou CNPJ.</small>
+            {% for error in form.cnpj.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field">
+            <label for="{{ form.password.id }}">{{ form.password.label.text }}<span class="required">*</span></label>
+            <div class="password-field">
+                {{ form.password(size=32) }}
+                <button type="button" class="password-toggle" data-target="{{ form.password.id }}" aria-pressed="false">
+                    <span class="icon-eye" aria-hidden="true"></span>
+                    <span class="sr-only">Mostrar senha</span>
+                </button>
+            </div>
+            {% for error in form.password.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field">
+            <label for="{{ form.confirm_password.id }}">{{ form.confirm_password.label.text }}<span class="required">*</span></label>
+            <div class="password-field">
+                {{ form.confirm_password(size=32) }}
+                <button type="button" class="password-toggle" data-target="{{ form.confirm_password.id }}" aria-pressed="false">
+                    <span class="icon-eye" aria-hidden="true"></span>
+                    <span class="sr-only">Mostrar senha</span>
+                </button>
+            </div>
+            {% for error in form.confirm_password.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field checkbox">
+            {{ form.accept_terms(id="accept_terms") }}
+            <label for="accept_terms">Aceito os termos<span class="required">*</span></label>
+            {% for error in form.accept_terms.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
     </div>
     <div class="form-actions">
         {{ form.submit(class_='btn-primary') }}
     </div>
 </form>
 {% endblock %}
+
+
+
+
+

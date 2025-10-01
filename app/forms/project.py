@@ -18,15 +18,16 @@ class ProjectForm(FlaskForm):
     vswr_target = FloatField("VSWR alvo", validators=[Optional(), NumberRange(min=1, max=5)])
 
     v_count = IntegerField("Elementos verticais", validators=[DataRequired(), NumberRange(min=1, max=16)])
-    v_spacing_m = FloatField("Espaçamento vertical (m)", validators=[Optional(), NumberRange(min=0)])
-    v_beta_deg = FloatField("Beta vertical (°)", validators=[Optional()])
-    v_level_amp = FloatField("Nível vertical", validators=[Optional(), NumberRange(min=0)])
-    v_norm_mode = SelectField(
-        "Normalização vertical",
-        choices=[("max", "Máximo"), ("first", "Primeiro"), ("sum", "Soma")],
-        validators=[DataRequired()],
-    )
-
+    v_spacing_m = FloatField("Espacamento vertical (m)", validators=[Optional(), NumberRange(min=0)])
+    v_tilt_deg = FloatField("Tilt eletrico desejado (deg)", validators=[Optional(), NumberRange(min=-30, max=30)])
+    v_beta_deg = FloatField("Beta vertical calculado (deg)", validators=[Optional()], render_kw={'readonly': True})
+    v_level_amp = FloatField("Nivel vertical", validators=[Optional(), NumberRange(min=0)])
+    v_norm_mode = SelectField(
+        "Normalizacao vertical",
+        choices=[("max", "Maximo"), ("first", "Primeiro"), ("sum", "Soma")],
+        validators=[DataRequired()],
+    )
+
     h_count = IntegerField("Elementos horizontais", validators=[DataRequired(), NumberRange(min=1, max=36)])
     h_spacing_m = FloatField("Espaçamento horizontal (m)", validators=[Optional(), NumberRange(min=0)])
     h_beta_deg = FloatField("Beta horizontal (°)", validators=[Optional()])

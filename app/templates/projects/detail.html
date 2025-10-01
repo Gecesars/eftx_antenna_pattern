@@ -2,11 +2,11 @@
 {% block content %}
 <section class="project-header">
     <h1>{{ project.name }}</h1>
-    <p>Antena: {{ project.antenna.name }} · Frequência: {{ "%.2f"|format(project.frequency_mhz) }} MHz · Potência: {{ "%.1f"|format(project.tx_power_w) }} W</p>
+    <p>Antena: {{ project.antenna.name }} - Frequencia: {{ "%.2f"|format(project.frequency_mhz) }} MHz - Potencia: {{ "%.1f"|format(project.tx_power_w) }} W</p>
     <a class="btn" href="{{ url_for('projects.edit', project_id=project.id) }}">Editar</a>
-    <a class="btn-primary" href="{{ url_for('projects.export', project_id=project.id) }}">Gerar exportações</a>
+    <a class="btn-primary" href="{{ url_for('projects.export', project_id=project.id) }}">Gerar exportacoes</a>
 </section>
-<section class="designer" id="designer" data-project="{{ project.id }}" data-api="{{ url_for('api.project_patterns', project_id=project.id) }}" data-payload='{{ data_payload|tojson }}'>
+<section class="designer" id="designer" data-project="{{ project.id }}" data-api="{{ url_for('api.project_patterns', project_id=project.id) }}" data-payload='{{ data_payload|tojson }}' data-frequency="{{ project.frequency_mhz }}">
     <div class="charts">
         <figure>
             <figcaption>HRP Composto</figcaption>
@@ -18,19 +18,21 @@
         </figure>
     </div>
     <div class="controls">
-        <h2>Ajustes rápidos</h2>
-        <label>Elementos horizontais <input type="range" name="h_count" min="1" max="36" value="{{ project.h_count }}"></label>
-        <label>Espaçamento horizontal (m) <input type="range" name="h_spacing_m" min="0" max="5" step="0.05" value="{{ project.h_spacing_m }}"></label>
-        <label>Beta horizontal (°) <input type="range" name="h_beta_deg" min="-180" max="180" step="1" value="{{ project.h_beta_deg }}"></label>
-        <label>Elementos verticais <input type="range" name="v_count" min="1" max="16" value="{{ project.v_count }}"></label>
-        <label>Espaçamento vertical (m) <input type="range" name="v_spacing_m" min="0" max="5" step="0.05" value="{{ project.v_spacing_m }}"></label>
-        <label>Beta vertical (°) <input type="range" name="v_beta_deg" min="-180" max="180" step="1" value="{{ project.v_beta_deg }}"></label>
+        <h2>Configuracao rapida</h2>
+        <label title="Quantidade de paineis distribuidos no plano horizontal">Elementos horizontais <input type="range" name="h_count" min="1" max="36" value="{{ project.h_count }}"></label>
+        <label title="Distancia entre paineis no plano horizontal (m)">Espacamento horizontal (m) <input type="range" name="h_spacing_m" min="0" max="5" step="0.05" value="{{ project.h_spacing_m }}"></label>
+        <label title="Fase progressiva entre paineis no plano horizontal (graus)">Beta horizontal (deg) <input type="range" name="h_beta_deg" min="-180" max="180" step="1" value="{{ project.h_beta_deg }}"></label>
+        <label title="Quantidade de paineis na coluna vertical">Elementos verticais <input type="range" name="v_count" min="1" max="16" value="{{ project.v_count }}"></label>
+        <label title="Espacamento entre os paineis verticais (m)">Espacamento vertical (m) <input type="range" name="v_spacing_m" min="0" max="5" step="0.05" value="{{ project.v_spacing_m }}"></label>
+        <label title="Tilt eletrico desejado em relacao ao horizonte (graus)">Tilt eletrico (deg) <input type="range" name="v_tilt_deg" min="-20" max="20" step="0.5" value="{{ project.v_tilt_deg or 0 }}"></label>
+        <p class="inline-info">Beta vertical calculado: <strong id="beta-display">{{ "%.2f"|format(project.v_beta_deg or 0) }}</strong> deg</p>
+        <label title="Fase aplicada automaticamente entre paineis verticais">Beta vertical (deg) <input type="range" name="v_beta_deg" min="-180" max="180" step="0.1" value="{{ project.v_beta_deg or 0 }}" disabled></label>
     </div>
 </section>
 <section>
     <h2>ERP 0-359 (W)</h2>
     <table class="table table-compact" id="erp-table">
-        <thead><tr><th>Ângulo</th><th>ERP (W)</th><th>ERP (dBW)</th></tr></thead>
+        <thead><tr><th>Angulo</th><th>ERP (W)</th><th>ERP (dBW)</th></tr></thead>
         <tbody>
         {% for angle, erp_w, erp_dbw in zip(data['angles_deg'], data['erp_w'], data['erp_dbw']) %}
             <tr>
@@ -46,7 +48,7 @@
     </table>
 </section>
 <section>
-    <h2>Exportações anteriores</h2>
+    <h2>Exportacoes anteriores</h2>
     <ul>
         {% for export in project.revisions|sort(attribute='created_at', reverse=True) %}
         <li>{{ export.created_at.strftime('%d/%m/%Y %H:%M') }} -

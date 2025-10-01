@@ -1,36 +1,134 @@
 ﻿{% extends "base.html" %}
 {% block content %}
 <h1>{{ 'Editar' if project else 'Novo' }} projeto</h1>
-<form method="post" novalidate class="form-grid">
+<form method="post" novalidate class="form-grid-wide">
     {{ form.hidden_tag() }}
-    <label>{{ form.name.label }} {{ form.name(size=40) }} {{ form.name.errors[0] if form.name.errors }}</label>
-    <label>{{ form.antenna_id.label }} {{ form.antenna_id() }} {{ form.antenna_id.errors[0] if form.antenna_id.errors }}</label>
-    <label>{{ form.frequency_mhz.label }} {{ form.frequency_mhz(step='0.1') }} {{ form.frequency_mhz.errors[0] if form.frequency_mhz.errors }}</label>
-    <label>{{ form.tx_power_w.label }} {{ form.tx_power_w(step='0.1') }} {{ form.tx_power_w.errors[0] if form.tx_power_w.errors }}</label>
-    <label>{{ form.tower_height_m.label }} {{ form.tower_height_m(step='0.1') }}</label>
-    <label>{{ form.cable_type.label }} {{ form.cable_type(size=20) }}</label>
-    <label>{{ form.cable_length_m.label }} {{ form.cable_length_m(step='0.1') }}</label>
-    <label>{{ form.splitter_loss_db.label }} {{ form.splitter_loss_db(step='0.1') }}</label>
-    <label>{{ form.connector_loss_db.label }} {{ form.connector_loss_db(step='0.1') }}</label>
-    <label>{{ form.vswr_target.label }} {{ form.vswr_target(step='0.1') }}</label>
-    <fieldset>
+    <div class="form-field" title="Identificação amigável do projeto">
+        <label>{{ form.name.label.text }}<span class="required">*</span></label>
+        {{ form.name(size=40) }}
+        {% for error in form.name.errors %}<span class="error">{{ error }}</span>{% endfor %}
+    </div>
+    <div class="form-field" title="Selecione a antena do portfólio EFTX">
+        <label>{{ form.antenna_id.label.text }}<span class="required">*</span></label>
+        {{ form.antenna_id() }}
+        {% for error in form.antenna_id.errors %}<span class="error">{{ error }}</span>{% endfor %}
+    </div>
+    <div class="form-field" title="Frequencia de operação em MHz">
+        <label>{{ form.frequency_mhz.label.text }}<span class="required">*</span></label>
+        {{ form.frequency_mhz(step='0.01') }}
+        {% for error in form.frequency_mhz.errors %}<span class="error">{{ error }}</span>{% endfor %}
+    </div>
+    <div class="form-field" title="Potencia efetiva do transmissor em watts">
+        <label>{{ form.tx_power_w.label.text }}<span class="required">*</span></label>
+        {{ form.tx_power_w(step='0.1') }}
+        {% for error in form.tx_power_w.errors %}<span class="error">{{ error }}</span>{% endfor %}
+    </div>
+    <div class="form-field" title="Altura do centro de fase acima do solo">
+        <label>{{ form.tower_height_m.label.text }}<span class="required">*</span></label>
+        {{ form.tower_height_m(step='0.1') }}
+        {% for error in form.tower_height_m.errors %}<span class="error">{{ error }}</span>{% endfor %}
+    </div>
+    <div class="form-field" title="Informe o tipo ou familia do cabo de alimentacao">
+        <label>{{ form.cable_type.label.text }}</label>
+        {{ form.cable_type(size=20) }}
+        {% for error in form.cable_type.errors %}<span class="error">{{ error }}</span>{% endfor %}
+    </div>
+    <div class="form-field" title="Comprimento total do cabo de alimentacao em metros">
+        <label>{{ form.cable_length_m.label.text }}</label>
+        {{ form.cable_length_m(step='0.1') }}
+        {% for error in form.cable_length_m.errors %}<span class="error">{{ error }}</span>{% endfor %}
+    </div>
+    <div class="form-field" title="Perdas adicionais por divisores">
+        <label>{{ form.splitter_loss_db.label.text }}</label>
+        {{ form.splitter_loss_db(step='0.1') }}
+        {% for error in form.splitter_loss_db.errors %}<span class="error">{{ error }}</span>{% endfor %}
+    </div>
+    <div class="form-field" title="Perdas adicionais por conectores">
+        <label>{{ form.connector_loss_db.label.text }}</label>
+        {{ form.connector_loss_db(step='0.1') }}
+        {% for error in form.connector_loss_db.errors %}<span class="error">{{ error }}</span>{% endfor %}
+    </div>
+    <div class="form-field" title="VSWR alvo para o sistema">
+        <label>{{ form.vswr_target.label.text }}</label>
+        {{ form.vswr_target(step='0.1') }}
+        {% for error in form.vswr_target.errors %}<span class="error">{{ error }}</span>{% endfor %}
+    </div>
+
+    <fieldset class="form-section" title="Configurações da coluna vertical">
         <legend>Composição vertical</legend>
-        <label>{{ form.v_count.label }} {{ form.v_count() }}</label>
-        <label>{{ form.v_spacing_m.label }} {{ form.v_spacing_m(step='0.01') }}</label>
-        <label>{{ form.v_beta_deg.label }} {{ form.v_beta_deg(step='0.1') }}</label>
-        <label>{{ form.v_level_amp.label }} {{ form.v_level_amp(step='0.1') }}</label>
-        <label>{{ form.v_norm_mode.label }} {{ form.v_norm_mode() }}</label>
+        <div class="form-field" title="Quantidade de painéis verticais no arranjo">
+            <label>{{ form.v_count.label.text }}<span class="required">*</span></label>
+            {{ form.v_count() }}
+            {% for error in form.v_count.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field" title="Distância entre painéis da coluna">
+            <label>{{ form.v_spacing_m.label.text }}</label>
+            {{ form.v_spacing_m(step='0.01') }}
+            {% for error in form.v_spacing_m.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field" title="Tilt elétrico desejado em relação ao horizonte">
+            <label>{{ form.v_tilt_deg.label.text }}</label>
+            {{ form.v_tilt_deg(step='0.1') }}
+            {% for error in form.v_tilt_deg.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field" title="Fase progressiva calculada para atender o tilt informado">
+            <label>{{ form.v_beta_deg.label.text }}</label>
+            {{ form.v_beta_deg(step='0.1') }}
+            {% for error in form.v_beta_deg.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field" title="Amplitude relativa aplicada a cada elemento">
+            <label>{{ form.v_level_amp.label.text }}</label>
+            {{ form.v_level_amp(step='0.1') }}
+            {% for error in form.v_level_amp.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field" title="Normalizacao aplicada ao padrão vertical">
+            <label>{{ form.v_norm_mode.label.text }}</label>
+            {{ form.v_norm_mode() }}
+            {% for error in form.v_norm_mode.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
     </fieldset>
-    <fieldset>
+
+    <fieldset class="form-section" title="Configurações do arranjo horizontal">
         <legend>Composição horizontal</legend>
-        <label>{{ form.h_count.label }} {{ form.h_count() }}</label>
-        <label>{{ form.h_spacing_m.label }} {{ form.h_spacing_m(step='0.01') }}</label>
-        <label>{{ form.h_beta_deg.label }} {{ form.h_beta_deg(step='0.1') }}</label>
-        <label>{{ form.h_step_deg.label }} {{ form.h_step_deg(step='0.1') }}</label>
-        <label>{{ form.h_level_amp.label }} {{ form.h_level_amp(step='0.1') }}</label>
-        <label>{{ form.h_norm_mode.label }} {{ form.h_norm_mode() }}</label>
+        <div class="form-field" title="Quantidade de painéis na anel horizontal">
+            <label>{{ form.h_count.label.text }}<span class="required">*</span></label>
+            {{ form.h_count() }}
+            {% for error in form.h_count.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field" title="Espaçamento angular entre painéis">
+            <label>{{ form.h_spacing_m.label.text }}</label>
+            {{ form.h_spacing_m(step='0.01') }}
+            {% for error in form.h_spacing_m.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field" title="Fase progressiva horizontal">
+            <label>{{ form.h_beta_deg.label.text }}</label>
+            {{ form.h_beta_deg(step='0.1') }}
+            {% for error in form.h_beta_deg.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field" title="Incremento de rotação para painéis sucessivos">
+            <label>{{ form.h_step_deg.label.text }}</label>
+            {{ form.h_step_deg(step='0.1') }}
+            {% for error in form.h_step_deg.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field" title="Amplitude relativa entre painéis">
+            <label>{{ form.h_level_amp.label.text }}</label>
+            {{ form.h_level_amp(step='0.1') }}
+            {% for error in form.h_level_amp.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-field" title="Normalizacao aplicada ao padrão horizontal">
+            <label>{{ form.h_norm_mode.label.text }}</label>
+            {{ form.h_norm_mode() }}
+            {% for error in form.h_norm_mode.errors %}<span class="error">{{ error }}</span>{% endfor %}
+        </div>
     </fieldset>
-    <label>{{ form.notes.label }} {{ form.notes(rows=3, cols=40) }}</label>
-    {{ form.submit(class_='btn-primary') }}
+
+    <div class="form-field form-field-span" title="Notas internas do projeto">
+        <label>{{ form.notes.label.text }}</label>
+        {{ form.notes(rows=3, cols=60) }}
+        {% for error in form.notes.errors %}<span class="error">{{ error }}</span>{% endfor %}
+    </div>
+    <div class="form-actions">
+        {{ form.submit(class_='btn-primary') }}
+    </div>
 </form>
 {% endblock %}

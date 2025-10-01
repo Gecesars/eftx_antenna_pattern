@@ -7,6 +7,7 @@
     <title>{{ title }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <script defer src="{{ url_for('static', filename='js/designer.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='js/forms.js') }}"></script>
 </head>
 <body>
 <header class="topbar">
@@ -44,5 +45,6 @@
 <footer class="footer">
     <p>&copy; {{ 2025 }} EFTX Telecom</p>
 </footer>
+{% block scripts %}{% endblock %}
 </body>
 </html>
