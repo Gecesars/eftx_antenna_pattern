@@ -2,39 +2,72 @@
 {% block content %}
 <section class="project-header">
     <h1>{{ project.name }}</h1>
-    <p>Antena: {{ project.antenna.name }} - Frequencia: {{ "%.2f"|format(project.frequency_mhz) }} MHz - Potencia: {{ "%.1f"|format(project.tx_power_w) }} W</p>
-    <a class="btn" href="{{ url_for('projects.edit', project_id=project.id) }}">Editar</a>
-    <a class="btn-primary" href="{{ url_for('projects.export', project_id=project.id) }}">Gerar exportacoes</a>
+    <p>Antena: {{ project.antenna.name }} · Frequencia: {{ "%.2f"|format(project.frequency_mhz) }} MHz · Potencia: {{ "%.1f"|format(project.tx_power_w) }} W</p>
+    <div class="header-actions">
+        <a class="btn" href="{{ url_for('projects.edit', project_id=project.id) }}">Editar</a>
+        <a class="btn-primary" href="{{ url_for('projects.export', project_id=project.id) }}">Gerar exportacoes</a>
+    </div>
 </section>
-<section class="designer" id="designer" data-project="{{ project.id }}" data-api="{{ url_for('api.project_patterns', project_id=project.id) }}" data-payload='{{ data_payload|tojson }}' data-frequency="{{ project.frequency_mhz }}">
-    <div class="charts">
-        <figure>
-            <figcaption>HRP Composto</figcaption>
-            <canvas id="chart-hrp" width="320" height="320"></canvas>
-        </figure>
-        <figure>
-            <figcaption>VRP Composto</figcaption>
-            <canvas id="chart-vrp" width="320" height="320"></canvas>
-        </figure>
+{% if latest_export %}
+<section class="export-panel">
+    <h2>Downloads do ultimo processamento ({{ latest_export.created_at.strftime('%d/%m/%Y %H:%M') if latest_export.created_at else 'agora' }})</h2>
+    <div class="export-grid">
+        <article class="export-card export-card--pdf">
+            <header>
+                <span class="export-icon">📄</span>
+                <h3>Relatorio PDF</h3>
+            </header>
+            <p>Resumo completo com graficos, tabelas e parametros do projeto.</p>
+            <a class="export-action" href="{{ latest_files['pdf'] }}">Baixar PDF</a>
+        </article>
+        <article class="export-card export-card--pat">
+            <header>
+                <span class="export-icon">📡</span>
+                <h3>Arquivo PAT</h3>
+            </header>
+            <p>Padrão composto 0°-359° compatível com softwares HFSS.</p>
+            <a class="export-action" href="{{ latest_files['pat'] }}">Baixar PAT</a>
+        </article>
+        <article class="export-card export-card--prn">
+            <header>
+                <span class="export-icon">📈</span>
+                <h3>Arquivo PRN</h3>
+            </header>
+            <p>Tabela de atenuacoes positivas (dB) para simuladores de campo.</p>
+            <a class="export-action" href="{{ latest_files['prn'] }}">Baixar PRN</a>
+        </article>
+        <article class="export-card export-card--bundle">
+            <header>
+                <span class="export-icon">🗂️</span>
+                <h3>Pacote ZIP</h3>
+            </header>
+            <p>PDF + PAT + PRN em um único pacote para facilitar o envio.</p>
+            <a class="export-action" href="{{ latest_files['bundle'] }}">Baixar pacote</a>
+        </article>
     </div>
-    <div class="controls">
-        <h2>Configuracao rapida</h2>
-        <label title="Quantidade de paineis distribuidos no plano horizontal">Elementos horizontais <input type="range" name="h_count" min="1" max="36" value="{{ project.h_count }}"></label>
-        <label title="Distancia entre paineis no plano horizontal (m)">Espacamento horizontal (m) <input type="range" name="h_spacing_m" min="0" max="5" step="0.05" value="{{ project.h_spacing_m }}"></label>
-        <label title="Fase progressiva entre paineis no plano horizontal (graus)">Beta horizontal (deg) <input type="range" name="h_beta_deg" min="-180" max="180" step="1" value="{{ project.h_beta_deg }}"></label>
-        <label title="Quantidade de paineis na coluna vertical">Elementos verticais <input type="range" name="v_count" min="1" max="16" value="{{ project.v_count }}"></label>
-        <label title="Espacamento entre os paineis verticais (m)">Espacamento vertical (m) <input type="range" name="v_spacing_m" min="0" max="5" step="0.05" value="{{ project.v_spacing_m }}"></label>
-        <label title="Tilt eletrico desejado em relacao ao horizonte (graus)">Tilt eletrico (deg) <input type="range" name="v_tilt_deg" min="-20" max="20" step="0.5" value="{{ project.v_tilt_deg or 0 }}"></label>
-        <p class="inline-info">Beta vertical calculado: <strong id="beta-display">{{ "%.2f"|format(project.v_beta_deg or 0) }}</strong> deg</p>
-        <label title="Fase aplicada automaticamente entre paineis verticais">Beta vertical (deg) <input type="range" name="v_beta_deg" min="-180" max="180" step="0.1" value="{{ project.v_beta_deg or 0 }}" disabled></label>
-    </div>
+</section>
+{% endif %}
+<section class="pattern-visuals">
+    {% for key, preview in previews.items() %}
+    <article class="pattern-figure">
+        <header>
+            <h2>{{ 'Diagrama de Azimute (original)' if key == 'azimuth' else 'Diagrama de Elevacao (original)' }}</h2>
+        </header>
+        <img src="{{ preview.image }}" alt="Pre-visualizacao {{ key }}" loading="lazy">
+        <ul class="metric-list">
+            {% for line in preview.stats %}
+            <li>{{ line }}</li>
+            {% endfor %}
+        </ul>
+    </article>
+    {% endfor %}
 </section>
 <section>
-    <h2>ERP 0-359 (W)</h2>
+    <h2>ERP composto (0°-359°)</h2>
     <table class="table table-compact" id="erp-table">
         <thead><tr><th>Angulo</th><th>ERP (W)</th><th>ERP (dBW)</th></tr></thead>
         <tbody>
-        {% for angle, erp_w, erp_dbw in zip(data['angles_deg'], data['erp_w'], data['erp_dbw']) %}
+        {% for angle, erp_w, erp_dbw in erp_rows %}
             <tr>
                 <td>{{ "%03d"|format(angle % 360) }}</td>
                 <td>{{ "%.2f"|format(erp_w) }}</td>
@@ -51,10 +84,11 @@
     <h2>Exportacoes anteriores</h2>
     <ul>
         {% for export in project.revisions|sort(attribute='created_at', reverse=True) %}
-        <li>{{ export.created_at.strftime('%d/%m/%Y %H:%M') }} -
+        <li>{{ export.created_at.strftime('%d/%m/%Y %H:%M') if export.created_at else 'sem data' }} -
             <a href="{{ url_for('projects.download', project_id=project.id, export_id=export.id, file_type='pat') }}">PAT</a>
             <a href="{{ url_for('projects.download', project_id=project.id, export_id=export.id, file_type='prn') }}">PRN</a>
             <a href="{{ url_for('projects.download', project_id=project.id, export_id=export.id, file_type='pdf') }}">PDF</a>
+            <a href="{{ url_for('projects.download_bundle', project_id=project.id, export_id=export.id) }}">ZIP</a>
         </li>
         {% else %}
         <li>Nenhum arquivo gerado.</li>

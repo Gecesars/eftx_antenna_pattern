@@ -1,4 +1,4 @@
-﻿{% set title = title or "EFTX Antenna Composer" %}
+{% set title = title or "EFTX Antenna Composer" %}
 <!doctype html>
 <html lang="pt-br">
 <head>
@@ -9,7 +9,7 @@
     <script defer src="{{ url_for('static', filename='js/designer.js') }}"></script>
     <script defer src="{{ url_for('static', filename='js/forms.js') }}"></script>
 </head>
-<body>
+<body class="{% if current_user.is_authenticated %}app-auth{% else %}app-public{% endif %}">
 <header class="topbar">
     <div class="brand">
         <a href="{{ url_for('public.home') }}" class="brand-logo">
@@ -17,31 +17,60 @@
         </a>
         <span>{{ brand.tagline }}</span>
     </div>
-    <nav>
+    <div class="topbar-actions">
         {% if current_user.is_authenticated %}
-            <a href="{{ url_for('projects.dashboard') }}">Projetos</a>
-            {% if current_user.is_admin %}
-                <a href="{{ url_for('admin.dashboard') }}">Admin</a>
-            {% endif %}
-            <a href="{{ url_for('auth.logout') }}">Sair</a>
+            <span class="user-chip">{{ current_user.full_name }}</span>
+            <a class="logout-link" href="{{ url_for('auth.logout') }}">Sair</a>
         {% else %}
             <a href="{{ url_for('auth.login') }}">Entrar</a>
-            <a href="{{ url_for('auth.register') }}">Cadastro</a>
+            <a class="btn-primary" href="{{ url_for('auth.register') }}">Cadastro</a>
         {% endif %}
-    </nav>
+    </div>
 </header>
-<main class="container">
-    {% with messages = get_flashed_messages(with_categories=True) %}
-    {% if messages %}
-        <ul class="flash">
-            {% for category, message in messages %}
-                <li class="{{ category }}">{{ message }}</li>
-            {% endfor %}
-        </ul>
+<div class="app-shell">
+    {% if current_user.is_authenticated %}
+    {% set blueprint = request.blueprint or '' %}
+    <aside class="sidebar">
+        <nav class="sidebar-nav">
+            <a class="sidebar-link{% if blueprint == 'projects' %} active{% endif %}" href="{{ url_for('projects.dashboard') }}">
+                <span>Projetos</span>
+            </a>
+            <a class="sidebar-link{% if request.endpoint == 'projects.create' %} active{% endif %}" href="{{ url_for('projects.create') }}">
+                <span>Novo projeto</span>
+            </a>
+            <a class="sidebar-link{% if blueprint == 'public' %} active{% endif %}" href="{{ url_for('public.home') }}#portfolio">
+                <span>Antenas disponiveis</span>
+            </a>
+            {% if current_user.is_admin %}
+            <a class="sidebar-link{% if blueprint == 'admin' %} active{% endif %}" href="{{ url_for('admin.dashboard') }}">
+                <span>Administracao</span>
+            </a>
+            <a class="sidebar-link{% if request.endpoint and request.endpoint.startswith('admin.data') %} active{% endif %}" href="{{ url_for('admin.data_index') }}">
+                <span>Gestor de dados</span>
+            </a>
+            {% endif %}
+            <a class="sidebar-link" href="{{ url_for('projects.dashboard') }}#relatorios">
+                <span>Relatorios</span>
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <small>EFTX Telecom</small>
+        </div>
+    </aside>
     {% endif %}
-    {% endwith %}
-    {% block content %}{% endblock %}
-</main>
+    <main class="workspace">
+        {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+            <ul class="flash">
+                {% for category, message in messages %}
+                    <li class="{{ category }}">{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+</div>
 <footer class="footer">
     <p>&copy; {{ 2025 }} EFTX Telecom</p>
 </footer>

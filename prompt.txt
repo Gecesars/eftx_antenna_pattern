@@ -1,0 +1,263 @@
+
+# 📡 Prompt Mestre — EFTX Antenna Suite (Flask + PostgreSQL + Frontend Responsivo)
+
+## 🔷 Missão
+Você é o agente Codex encarregado de **evoluir** uma aplicação já existente para cálculo, composição e gestão de **diagramas de antenas** da EFTX. **Não comece do zero.** Sua tarefa é:
+1) **Vasculhar o repositório local**, entender o que já existe (código, modelos, rotas, templates, migrações), comparar com este prompt.
+2) **Planejar e aplicar melhorias** (arquitetura, UX/UI, banco, exportações, testes, segurança, observabilidade), **preservando o que funciona** e minimizando regressões.
+3) **Entregar um app web robusto e profissional**, com backend **Flask**, banco **PostgreSQL/SQLAlchemy/Alembic**, frontend responsivo em **HTML5/CSS/JS** (Tailwind ou Bootstrap), geração coerente de **PDF, PAT e PRN**, e cálculos/plots **Matplotlib**.
+
+> **Importante:** opere com `--sandbox workspace-write` (ou mais aberto, se permitido) e `-a never`, executando comandos automaticamente. Sempre explique as mudanças via diffs (`codex apply`) e registre no CHANGELOG.
+
+---
+
+## 🧭 Roteiro de Descoberta (não destrutivo)
+Antes de alterar qualquer coisa, **faça inventário** do projeto que já existe. Execute e cole nos logs/resultados:
+
+- Estrutura e arquivos chave:
+  - `ls -la` no root do projeto e subpastas relevantes (`/models`, `/routes`, `/templates`, `/static`, `/services`, `/migrations`).
+  - `git status`, `git branch -vv`, `git log --oneline -n 20` (se houver git).
+- Busca e mapeamento de código:
+  - `rg -n "Flask|SQLAlchemy|Blueprint|@app.route|@bp.route|jwt|alembic|PAT|PRN|reportlab|matplotlib|pdf" -S`
+  - `rg -n "(VRP|HRP|PAT|PRN|ERP|HPBW|SLL|Ripple|F/B|Directivity)" -S` (localize cálculos/exports existentes).
+- Ambiente e dependências:
+  - `python --version`, `pip --version`
+  - `pip freeze > pip-freeze.txt`
+  - Verifique `.env`, `config.py`, variáveis (`SECRET_KEY`, `DATABASE_URL`), e se há `.env.example`.
+- Banco e migrações:
+  - `alembic current` ou `flask db current` (se aplicável).
+  - `psql -c "\dt"` e `\d+ <tabela>` para inspecionar esquema atual (se permitido).
+- Servidor/execução:
+  - Runner local: `flask run` ou `python app.py` (não iniciar permanente; apenas confirmar main entrypoint).
+- Testes (se existirem):
+  - `pytest -q` ou `python -m pytest -q`
+
+**Saída esperada desta fase**: um **relatório de descoberta** (`docs/00-auditoria.md`) contendo:
+- Estrutura de pastas, módulos e responsabilidades.
+- Rotas existentes e lacunas vs. este prompt.
+- Modelos, relações e constraints já criadas vs. as necessárias.
+- Pontos de dívida técnica, riscos e quick wins.
+- Plano incremental de execução (milestones).
+
+---
+
+## 🗺️ Escopo Funcional (consolidado)
+1) **Autenticação & Perfis**
+   - Cadastro com **CPF/CNPJ + e-mail verificado** (token por e-mail).
+   - Login (JWT) e recuperação de senha.
+   - Perfis: **admin/master** (cadastra antenas e diagramas) e **usuário** (cria projetos).
+2) **Catálogo de Antenas (Admin)**
+   - CRUD de antenas: nome, modelo, fabricante, peso, dimensões, ganho básico.
+   - Importação/armazenamento de **diagramas VRP/HRP** (antes CSV/TXT), com persistência no banco (tabelas dedicadas).
+3) **Projetos do Usuário**
+   - Criar/editar projetos com altura de torre, cabo (tipo/comprimento), antenas do portfólio, espaçamento vertical/horizontal, fase etc.
+   - **Composição automática** do diagrama e cálculo de **ERP por radial**.
+   - **Métricas**: HPBW, diretividade/ganho estimado, F/B, Ripple p2p, SLL, ângulo de pico.
+4) **Exportações**
+   - **PDF** (gráficos + tabelas + timbre EFTX), paginação de tabelas e layout profissional.
+   - **.PAT** (formatos coerentes conforme exemplos do código fornecido).
+   - **.PRN** (atenuação positiva em dB; headers técnicos coerentes).
+5) **Frontend**
+   - Dashboard responsivo (tema escuro, destaque azul EFTX), menu lateral (Projetos, Antenas, Relatórios, Configurações).
+   - Formulários com máscaras/validação (CPF/CNPJ, e-mail, telefone).
+   - Tabelas com paginação, busca e filtros.
+   - UX consistente e acessível (a11y básica).
+
+---
+
+## 🏗️ Arquitetura Técnica
+- **Backend**
+  - Flask com Blueprints: `auth`, `antennas`, `projects`, `export`, `admin`, `health`.
+  - **SQLAlchemy ORM** com **Alembic** para migrações.
+  - **JWT** (flask_jwt_extended). Senhas com **bcrypt**.
+  - **Serviços**: módulo `services/` para cálculos (VRP/HRP, AF, métricas), export (PDF/PAT/PRN), e utilitários.
+  - **Logs estruturados** (JSON em produção) e níveis separados (INFO/ERROR). Logger central em `utils/logging.py`.
+  - **Erros**: handlers globais (HTTPException, 404, 422, 500) retornando JSON padronizado.
+  - **Validação**: marshmallow/pydantic (adotar um) nas entradas das APIs.
+  - **Paginação & filtros**: parâmetros `page`, `page_size`, `q`, `sort` nos endpoints de listagem.
+  - **Rate‑limit opcional**: flask-limiter (configurável).
+- **Banco (PostgreSQL)**
+  - Tabelas: `users`, `antennas`, `diagrams` (tipo=VRP/HRP, amostras 1°), `projects`, `project_antennas` (N:N + parâmetros por item), `exports` (histórico).
+  - **Constraints & índices**: PK/FK, unique para (antena.nome, modelo, fabricante), índices em chaves de busca (nome, modelo), **FK ON DELETE RESTRICT/SET NULL** conforme necessidade.
+  - **Migrations Alembic**: uma por alteração de schema; versionamento consistente em `/migrations`.
+  - **Seeds**: script `scripts/seed_admin.py` para criar admin master inicial e antenas demo.
+  - **Backups**: script `scripts/backup_db.ps1/sh` (pg_dump) e `scripts/restore_db.sh`.
+- **Frontend**
+  - HTML Jinja2 + Tailwind (ou Bootstrap via CDN).
+  - Layout fluido (grid responsivo), form states claros, feedback de validação, componentes reutilizáveis (cards, tabelas).
+  - Arquivo de **design tokens** básicos (cores, espaços, bordas).
+  - **Responsividade**: breakpoints XS/SM/MD/LG/Xl, testes em 360px/768px/1024px/1440px.
+- **Plot & Cálculo**
+  - **Matplotlib** sem estilos custom forçados; gerar PNGs para PDF.
+  - Funções de parsing/reamostragem (VRP/HRP), normalização, AF vertical/horizontal, métricas (HPBW, diretividade, F/B, Ripple, SLL, pico) — **reutilizar** e consolidar do código fornecido (evitar duplicação).
+- **Exportadores**
+  - `.PAT` (Aba 1 e composto), `.PRN` (atenuação positiva), **PDF** (reportlab + pypdf) com paginação de tabelas e cabeçalho/timbre.
+  - **Validações de formato**: garantir ranges corretos (ex.: HRP 0..359, VRP -90..+90), e coerência dos headers.
+
+---
+
+## 🔐 Segurança, Sessão & Config
+- **Segredos**: usar `.env` (não versionar). `SECRET_KEY`, `DATABASE_URL`, SMTP, etc.
+- **JWT**: expiração, refresh tokens (opcional), `@jwt_required` nas rotas protegidas.
+- **RBAC simples**: decorator `@role_required("admin")`.
+- **CORS**: configurar se houver front separado.
+- **Headers de segurança**: `X-Content-Type-Options`, `X-Frame-Options`, `Content-Security-Policy` básico.
+- **Upload sanitizado** (CSV/TXT): validar extensões, tamanho, charset.
+
+---
+
+## 📋 Páginas e Rotas (contratos mínimos)
+- `GET /health` → `{status:"ok", version}`
+- `POST /auth/register` (CPF/CNPJ, email, senha) → envia e-mail verificação
+- `POST /auth/verify-email` (token)
+- `POST /auth/login` → JWT
+- **Antenas (admin)**
+  - `GET /antennas` (lista/paginação/filtro)
+  - `POST /antennas` (admin) — metadados + upload VRP/HRP (ou colar dados)
+  - `GET /antennas/:id`, `PUT /antennas/:id`, `DELETE /antennas/:id` (admin)
+  - `GET /antennas/:id/diagrams` (VRP/HRP)
+- **Projetos (user)**
+  - `GET /projects`, `POST /projects`
+  - `GET /projects/:id`, `PUT /projects/:id`, `DELETE /projects/:id`
+  - `POST /projects/:id/compute` (recalcula composição + métricas, guarda snapshot)
+- **Export**
+  - `POST /export/pdf` (gera PDF do projeto)
+  - `POST /export/pat` (HRP/VRP simples/composto)
+  - `POST /export/prn`
+  - (Responde arquivo + registra em `exports`)
+
+**Frontend** (Jinja):
+- `/` (login/cadastro, com verificação de e-mail).
+- `/dashboard` (cards: projetos recentes, exportações).
+- `/antennas` (admin CRUD).
+- `/projects` (lista + criar/editar -> forms + preview gráfico).
+- `/reports/:id` (histórico de exportações).
+
+---
+
+## 🗄️ Modelagem (SQLAlchemy – referência)
+- `User(id, name, email, password_hash, role[admin|user], cpf_cnpj, phone, address, verified_at, created_at)`
+- `Antenna(id, name, model, maker, weight, dimensions, base_gain_dbi, created_by, created_at)`
+- `Diagram(id, antenna_id->Antenna, type[VRP|HRP], angle_deg, e_over_emax_linear)` **(pode usar tabelas compactas com JSONB para série, se preferir, mas priorize 1° passo simples)**
+- `Project(id, user_id, name, tower_height_m, cable_type, cable_length_m, vertical_spacing_m, horizontal_spacing_m, beta_deg, step_deg, freq_hz, notes, created_at)`
+- `ProjectAntenna(id, project_id, antenna_id, level_amp, position_idx, custom_phase_deg, custom_spacing_m)`
+- `ExportJob(id, project_id, kind[PDF|PAT|PRN], path, meta_json, created_at)`
+
+**Constraints/Índices**
+- Uniques: `(Antenna.name, model, maker)`.
+- Índices em `Diagram(antenna_id, type, angle_deg)`, `Project(user_id)`.
+- FKs ON DELETE: `ProjectAntenna.project_id CASCADE`; `Diagram.antenna_id RESTRICT`.
+- Validação de CPF/CNPJ server‑side.
+
+---
+
+## 🧪 Qualidade, Testes & CI
+- **pytest** + **coverage** mínimo 70% para serviços críticos (cálculos, export, auth).
+- Testes de **parsers VRP/HRP**, **reamostragem**, **AF**, **métricas**, **export PAT/PRN/PDF** (goldens pequenos).
+- **Flake8/Black** (ou ruff) para lint/format.
+- **Makefile/Justfile** com alvos úteis: `setup`, `dev`, `test`, `lint`, `migrate`, `seed`, `run`.
+- (Opcional) Github Actions simples: lint + testes.
+
+---
+
+## 🎨 UX/UI Responsiva (critério de aceite)
+- **Header** fixo com logo EFTX, **sidebar** colapsável.
+- **Dark theme** com azul EFTX; componentes com estados: hover/focus/disabled/invalid.
+- **Formulários** com máscaras e help‑texts (CPF/CNPJ, telefone). Feedback inline de erro.
+- Tabelas com paginação e busca; em telas pequenas, transformá‑las em cards.
+- Gráficos renderizados/embutidos com preview (PNG); botões de **Exportar** (PDF/PAT/PRN).
+- **Acessibilidade base**: labels associados, contraste suficiente, navegação por teclado.
+
+---
+
+## 📑 Exportações — Regras (coerentes com código fornecido)
+- **.PAT (Aba 1)**:
+  - HRP: -180..+180 (passo 1), linhas com `ang\tE/Emax\t0`, header `"Edited by <autor>"` etc.
+  - VRP: -90..+90 (passo 0.1), mesmo formato.
+- **.PAT (Composto)**:
+  - Header `'<desc>', <gain>, <num_elems>`; 0..359 (1°) + linhas 356..359; `999`, `1, 91`, `269,` e tail vertical 0..-90.
+- **.PRN**:
+  - Cabeçalho: NAME, MAKE, FREQUENCY (GHz/MHz), H_WIDTH, V_WIDTH, FRONT_TO_BACK, GAIN dBi, TILT MECHANICAL.
+  - **HORIZONTAL 360** & **VERTICAL 360** com valor **atenuação positiva (dB)** = `max(0, -20*log10(E/Emax))`.
+- **PDF**:
+  - ReportLab + pypdf: páginas de gráficos (centralizados) + páginas de tabelas **paginadas automaticamente**, cabeçalho com título, timbre `modelo.pdf` se disponível.
+  - Tabelas multi‑coluna conforme necessidade (6 colunas típicas: Ângulo, E/Emax, dB × N colunas).
+
+---
+
+## ⚙️ Operação, Deploy e Observabilidade
+- **Config** por ambiente: `config.py` (Dev/Prod). Leitura de `.env`.
+- **Healthcheck** `/health`.
+- **Logging**: JSON em produção; rotação (logrotate) ou stdout (12-factor).
+- **Erros** enviados ao Sentry (opcional; configurar DSN via `.env`).
+- **Backup BD** diário (script pronto).
+
+---
+
+## 🧰 Tarefas que o Codex deve realizar agora (ordem sugerida)
+1) **Auditoria** (seção “Roteiro de Descoberta”) e criar `docs/00-auditoria.md` com achados e lacunas.
+2) **Planejamento**: criar `docs/01-plano.md` com milestones (M1: dados/diagrams, M2: projetos/cálculo, M3: exportações, M4: UX/segurança, M5: testes/CI).
+3) **Normalizar config**: `.env.example`, `config.py` (SECRET_KEY, DATABASE_URL, JWT, MAIL_*).
+4) **Banco**: criar/ajustar modelos + **Alembic migrations** coerentes (NUNCA editar tabelas direto). `flask db migrate`, `flask db upgrade`.
+5) **Seeds**: admin master, antenas demo e diagramas de exemplo. `scripts/seed_admin.py`.
+6) **Serviços**: consolidar parsing/reamostragem/cálculo/exports no pacote `services/` (aproveitar o código existente; remover duplicidades).
+7) **Rotas** com validação, paginação e RBAC.
+8) **Frontend**: Dashboard + formulários + tabelas responsivas + preview de gráficos.
+9) **Export**: PDF/PAT/PRN com checagens de formato e paginação de tabelas.
+10) **Testes** (unitários para cálculos/exports e integração leve de rotas).
+11) **Docs**: README com setup, `.env`, comandos de dev e rotas.
+12) **Changelog**: documentar alterações significativas.
+
+> Ao finalizar cada milestone, gere um **diff aplicável** (`codex apply`) e rode a suíte de testes.
+
+---
+
+## ✅ Critérios de Aceite
+- `flask run` funciona com `.env` preenchido.
+- `flask db upgrade` aplica schema completo.
+- CRUD de antenas/admin e projetos/usuário operacionais.
+- Cálculo e **gráficos** (VRP/HRP compostos) ok, **métricas** preenchidas.
+- **Exportações** `.PAT`, `.PRN`, **PDF** coerentes com regras acima.
+- Frontend responsivo e utilizável em mobile/desktop.
+- Testes críticos passando; cobertura básica registrada.
+- CHANGELOG atualizado; documentação de execução.
+
+---
+
+## 📦 Dependências (mínimas)
+flask
+flask_sqlalchemy
+flask_migrate
+flask_jwt_extended
+psycopg2-binary
+bcrypt
+python-dotenv
+marshmallow  # ou pydantic, escolha 1 e padronize
+reportlab
+pypdf
+pillow
+numpy
+matplotlib
+gunicorn  # produção (opcional)
+email-validator  # validação de e-mails
+phonenumbers    # validação de telefone
+python-cpf-cnpj # validação de CPF/CNPJ (ou implemente validação própria)
+ruff # lint (ou flake8/black)
+pytest
+coverage
+
+---
+
+## 🔄 Boas Práticas de Alteração
+- Nunca sobrescrever trabalho existente sem **diff claro** e **commit granulado**.
+- Antes de migrar schema, **backup** (se em ambiente real).
+- Adotar **feature flags** para mudanças arriscadas (se necessário).
+- Mensagens de commit descritivas; pull requests virtuais no `docs/CHANGELOG.md`.
+
+---
+
+## 📝 Observações Finais
+- Reutilize ao máximo o código de parsing/cálculo/export **já fornecido**; mova para `services/` e escreva testes.
+- Mantenha **consistência de unidades** (graus, dB, linear) e faixas (HRP 0..359, VRP -90..90) em todos os módulos.
+- PDFs devem **paginá‑los** para tabelas grandes, preservando formatação profissional.
+- Garanta que **PRN** use **atenuação positiva** e que os **headers** reflitam os valores computados.

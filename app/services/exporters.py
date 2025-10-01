@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import io
 import math
@@ -20,10 +20,27 @@ from reportlab.platypus import Table, TableStyle
 from reportlab.lib.utils import ImageReader
 
 from ..extensions import db
-from ..models import Project, ProjectExport
-from .pattern_composer import compute_erp, compose_horizontal_pattern, compose_vertical_pattern
+from ..models import Project, ProjectExport, PatternType
+from .metrics import (
+    directivity_2d_cut,
+    estimate_gain_dbi,
+    first_null_deg,
+    front_to_back_db,
+    hpbw_deg,
+    lin_to_db,
+    lin_to_att_db,
+    peak_angle_deg,
+    ripple_p2p_db,
+    sidelobe_level_db,
+)
+from .pattern_composer import (
+    compute_erp,
+    compose_horizontal_pattern,
+    compose_vertical_pattern,
+    resample_pattern,
+    resample_vertical,
+)
 
-C_LIGHT = 299_792_458.0
 BASE_DIR = Path(__file__).resolve().parents[2]
 
 
@@ -41,99 +58,10 @@ class ExportPaths:
         self.pdf = self.base_dir / "relatorio.pdf"
 
 
-def lin_to_db(values: np.ndarray | float) -> np.ndarray | float:
-    arr = np.maximum(values, 1e-12)
-    return 20.0 * np.log10(arr)
-
-
-def lin_to_att_db(value: float) -> float:
-    if value <= 0:
-        return 100.0
-    return max(0.0, -20.0 * math.log10(value))
-
-
-def hpbw_deg(angles_deg: np.ndarray, values: np.ndarray) -> float:
-    if len(angles_deg) < 3:
-        return float("nan")
-    normalised = values / np.max(values) if np.max(values) > 0 else values
-    threshold = math.sqrt(0.5)
-    peak_idx = int(np.argmax(normalised))
-    left = None
-    for idx in range(peak_idx, 0, -1):
-        if normalised[idx] >= threshold and normalised[idx - 1] < threshold:
-            left = np.interp(
-                threshold,
-                [normalised[idx - 1], normalised[idx]],
-                [angles_deg[idx - 1], angles_deg[idx]],
-            )
-            break
-    right = None
-    for idx in range(peak_idx, len(normalised) - 1):
-        if normalised[idx] >= threshold and normalised[idx + 1] < threshold:
-            right = np.interp(
-                threshold,
-                [normalised[idx], normalised[idx + 1]],
-                [angles_deg[idx], angles_deg[idx + 1]],
-            )
-            break
-    if left is None or right is None:
-        return float("nan")
-    return float(right - left)
-
-
-def front_to_back_db(angles_deg: np.ndarray, values: np.ndarray, window: float = 30.0) -> float:
-    normalised = values / np.max(values) if np.max(values) > 0 else values
-    angles_norm = (angles_deg + 360.0) % 360.0
-    mask = (angles_norm >= (180.0 - window)) & (angles_norm <= (180.0 + window))
-    if not np.any(mask):
-        return float("nan")
-    back = np.max(normalised[mask])
-    if back <= 0:
-        return 100.0
-    return max(0.0, -20.0 * math.log10(back))
-
-
-def ripple_p2p_db(angles_deg: np.ndarray, values: np.ndarray, threshold_db: float = -6.0) -> float:
-    normalised = values / np.max(values) if np.max(values) > 0 else values
-    db_vals = lin_to_db(normalised)
-    peak_idx = int(np.argmax(normalised))
-    left = peak_idx
-    while left > 0 and db_vals[left - 1] >= threshold_db:
-        left -= 1
-    right = peak_idx
-    while right < len(db_vals) - 1 and db_vals[right + 1] >= threshold_db:
-        right += 1
-    sector = db_vals[left:right + 1]
-    if sector.size == 0:
-        return float("nan")
-    return float(np.max(sector) - np.min(sector))
-
-
-def sidelobe_level_db(angles_deg: np.ndarray, values: np.ndarray, threshold_db: float = -6.0) -> float:
-    normalised = values / np.max(values) if np.max(values) > 0 else values
-    db_vals = lin_to_db(normalised)
-    peak_idx = int(np.argmax(normalised))
-    left = peak_idx
-    while left > 0 and db_vals[left - 1] >= threshold_db:
-        left -= 1
-    right = peak_idx
-    while right < len(db_vals) - 1 and db_vals[right + 1] >= threshold_db:
-        right += 1
-    outside = np.concatenate([db_vals[:left], db_vals[right + 1:]]) if (left > 0 or right < len(db_vals) - 1) else np.array([])
-    if outside.size == 0:
-        return float("nan")
-    return float(np.max(outside))
-
-
-def peak_angle_deg(angles_deg: np.ndarray, values: np.ndarray) -> float:
-    return float(angles_deg[int(np.argmax(values))])
-
-
-def estimate_gain_dbi(h_hpbw: float, v_hpbw: float) -> float:
-    if not (math.isfinite(h_hpbw) and math.isfinite(v_hpbw) and h_hpbw > 0 and v_hpbw > 0):
-        return float("nan")
-    directivity = 41253.0 / (h_hpbw * v_hpbw)
-    return 10.0 * math.log10(directivity)
+def _format_value(value: float, suffix: str = "") -> str:
+    if value is None or not np.isfinite(value):
+        return f"N/A{suffix}"
+    return f"{value:.2f}{suffix}"
 
 
 def angles_to_full_circle(angles_deg: np.ndarray, values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -159,70 +87,35 @@ def vertical_to_full_circle(angles_deg: np.ndarray, values: np.ndarray) -> tuple
     return angles, amp
 
 
-
-
-def write_pat_array(path: Path, description: str, gain: float, num_elems: int,
-                    angles_0_359: np.ndarray, values_0_359: np.ndarray,
-                    vertical_tail_angles: np.ndarray, vertical_tail_values: np.ndarray) -> None:
-    with path.open("w", encoding="utf-8") as f:
-        f.write(f"'{description}', {gain:.2f}, {num_elems}\n")
-        for ang in range(360):
-            val = float(np.interp(ang, angles_0_359, values_0_359))
-            f.write(f"{ang}, {val:.4f}\n")
-        for ang in [356, 357, 358, 359]:
-            val = float(np.interp(ang, angles_0_359, values_0_359))
-            f.write(f"{ang}, {val:.4f}\n")
-        f.write("999\n")
-        f.write("1, 91\n")
-        f.write("269,\n")
-        for ang in range(0, -91, -1):
-            v = float(np.interp(ang, vertical_tail_angles, vertical_tail_values))
-            f.write(f"{ang:.1f}, {v:.4f}\n")
-
-
-def write_prn(path: Path, name: str, make: str, frequency: float, freq_unit: str,
-              h_width: float, v_width: float, front_to_back: float, gain: float,
-              h_angles: np.ndarray, h_values: np.ndarray,
-              v_angles: np.ndarray, v_values: np.ndarray) -> None:
-    with path.open("w", encoding="utf-8") as f:
-        f.write(f"NAME {name}\n")
-        f.write(f"MAKE {make}\n")
-        f.write(f"FREQUENCY {frequency:.2f} {freq_unit}\n")
-        f.write(f"H_WIDTH {h_width:.2f}\n")
-        f.write(f"V_WIDTH {v_width:.2f}\n")
-        f.write(f"FRONT_TO_BACK {front_to_back:.2f}\n")
-        f.write(f"GAIN {gain:.2f} dBi\n")
-        f.write("TILT MECHANICAL\n")
-        f.write("HORIZONTAL 360\n")
-        for ang in range(360):
-            v = float(np.interp(ang, h_angles, h_values))
-            f.write(f"{ang}	{lin_to_att_db(v):.4f}\n")
-        f.write("VERTICAL 360\n")
-        for ang in range(360):
-            v = float(np.interp(ang, v_angles, v_values))
-            f.write(f"{ang}	{lin_to_att_db(v):.4f}\n")
 def _save_polar_plot(path: Path, angles: np.ndarray, values: np.ndarray, title: str) -> None:
+    angles_mod = (angles + 360.0) % 360.0
+    order = np.argsort(angles_mod)
+    theta_sorted = angles_mod[order]
+    values_sorted = values[order]
+    theta_wrapped = np.concatenate([theta_sorted, [theta_sorted[0] + 360.0]])
+    values_wrapped = np.concatenate([values_sorted, [values_sorted[0]]])
+    theta_rad = np.deg2rad(theta_wrapped)
+
     fig = plt.figure(figsize=(4.5, 4.5))
     ax = fig.add_subplot(111, projection="polar")
-    theta = np.deg2rad((angles + 360.0) % 360.0)
-    ax.plot(theta, values, linewidth=1.5, color="#0A4E8B")
+    ax.plot(theta_rad, values_wrapped, linewidth=1.6, color="#0A4E8B")
     ax.set_theta_zero_location("N")
     ax.set_theta_direction(-1)
     ax.set_title(title)
     ax.grid(True, alpha=0.3)
-    fig.savefig(path, dpi=200, bbox_inches="tight")
+    fig.savefig(path, dpi=220, bbox_inches="tight")
     plt.close(fig)
 
 
-def _save_linear_plot(path: Path, angles: np.ndarray, values: np.ndarray, title: str) -> None:
-    fig = plt.figure(figsize=(5.5, 3.5))
-    ax = fig.add_subplot(111)
-    ax.plot(angles, values, linewidth=1.5, color="#0A4E8B")
+def _save_planar_plot(path: Path, angles: np.ndarray, values: np.ndarray, title: str) -> None:
+    order = np.argsort(angles)
+    fig, ax = plt.subplots(figsize=(5.5, 3.5))
+    ax.plot(angles[order], values[order], linewidth=1.6, color="#0A4E8B")
     ax.set_xlabel("Angulo (deg)")
     ax.set_ylabel("Amplitude (linear)")
     ax.set_title(title)
     ax.grid(True, alpha=0.3)
-    fig.savefig(path, dpi=200, bbox_inches="tight")
+    fig.savefig(path, dpi=220, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -267,76 +160,119 @@ def _build_table_chunks(angles: np.ndarray, values: np.ndarray, available_width:
         ("FONTNAME", (c * 3, 0), (c * 3 + 2, 0), "Helvetica-Bold")
         for c in range(columns)
     ]))
-    return table.split(available_width, A4[1] - 60)
+    usable_height = A4[1] - 70
+    return table.split(available_width, usable_height)
+
+
+def _prepare_raw_pattern(project: Project, pattern_type: PatternType) -> tuple[np.ndarray, np.ndarray]:
+    pattern = project.antenna.pattern_for(pattern_type)
+    if not pattern:
+        if pattern_type is PatternType.HRP:
+            angles = np.arange(-180, 181, 1, dtype=float)
+        else:
+            angles = np.round(np.arange(-90.0, 90.0 + 0.0001, 0.1), 1)
+        return angles, np.ones_like(angles, dtype=float)
+    angles = np.asarray(pattern.angles_deg, dtype=float)
+    values = np.asarray(pattern.amplitudes_linear, dtype=float)
+    values = np.clip(values, 0.0, None)
+    if pattern_type is PatternType.HRP:
+        return resample_pattern(angles, values, -180, 180, 1)
+    return resample_vertical(angles, values)
 
 
 def _create_pdf_report(project: Project,
                        paths: ExportPaths,
-                       hrp_angles: np.ndarray,
-                       hrp_values: np.ndarray,
-                       vrp_angles: np.ndarray,
-                       vrp_values: np.ndarray,
-                       erp_data: dict,
-                       metrics: dict) -> None:
+                       raw_hrp_angles: np.ndarray,
+                       raw_hrp_values: np.ndarray,
+                       raw_vrp_angles: np.ndarray,
+                       raw_vrp_values: np.ndarray,
+                       array_metrics: dict) -> None:
     modelo_path = resource_path("modelo.pdf")
     template_exists = modelo_path.exists()
     tmp_dir = tempfile.TemporaryDirectory(prefix="eftx_pdf_")
     try:
+        hrp_full_angles, hrp_full_values = angles_to_full_circle(raw_hrp_angles, raw_hrp_values)
+
         hrp_img = Path(tmp_dir.name) / "hrp.png"
         vrp_img = Path(tmp_dir.name) / "vrp.png"
-        _save_polar_plot(hrp_img, hrp_angles, hrp_values, "HRP Composto")
-        _save_linear_plot(vrp_img, vrp_angles, vrp_values, "VRP Composto")
+        _save_polar_plot(hrp_img, raw_hrp_angles, raw_hrp_values, "Padrão Horizontal (HRP)")
+        _save_planar_plot(vrp_img, raw_vrp_angles, raw_vrp_values, "Padrão Vertical (VRP)")
 
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A4)
         width, height = A4
         margin = 18 * mm
 
-        c.setFont("Helvetica-Bold", 16)
-        c.drawCentredString(width / 2, height - margin, f"Relatorio de Projeto - {project.name}")
+        c.setFont("Helvetica-Bold", 17)
+        c.drawCentredString(width / 2, height - margin, f"Relatório Técnico - {project.name}")
         c.setFont("Helvetica", 11)
-        summary_lines = [
+
+        summary_left = [
             f"Antena: {project.antenna.name}",
-            f"Frequencia: {project.frequency_mhz:.2f} MHz",
-            f"Tilt eletrico: {project.v_tilt_deg or 0:.2f} deg",
-            f"ERP pico: {float(np.max(erp_data['erp_dbw'])):.2f} dBW ({float(np.max(erp_data['erp_w'])):.1f} W)",
+            f"Projeto: {project.name}",
+            f"Frequência: {project.frequency_mhz:.2f} MHz",
+            f"Potência TX: {project.tx_power_w:.1f} W",
+            f"Elementos (H/V): {project.h_count} / {project.v_count}",
         ]
-        y = height - margin - 20
-        for line in summary_lines:
-            c.drawString(margin, y, line)
-            y -= 14
+        summary_right = [
+            f"Espaçamento H: {project.h_spacing_m:.2f} m",
+            f"Espaçamento V: {project.v_spacing_m:.2f} m",
+            f"Tilt elétrico: {project.v_tilt_deg or 0:.2f} deg",
+            f"Perda alimentação: {project.feeder_loss_db or 0:.2f} dB",
+            f"VSWR alvo: {project.vswr_target or 0:.2f}",
+        ]
+        y_left = height - margin - 24
+        for line in summary_left:
+            c.drawString(margin, y_left, line)
+            y_left -= 14
+        y_right = height - margin - 24
+        col_x = width / 2 + 10
+        for line in summary_right:
+            c.drawString(col_x, y_right, line)
+            y_right -= 14
 
         chart_width = (width - margin * 3) / 2
-        chart_height = 120
-        c.drawImage(ImageReader(str(hrp_img)), margin, y - chart_height, width=chart_width, height=chart_height, preserveAspectRatio=True, mask="auto")
-        c.drawImage(ImageReader(str(vrp_img)), margin * 2 + chart_width, y - chart_height, width=chart_width, height=chart_height, preserveAspectRatio=True, mask="auto")
+        chart_height = 130
+        charts_y = min(y_left, y_right) - 20
+        c.drawImage(ImageReader(str(hrp_img)), margin, charts_y - chart_height, width=chart_width, height=chart_height, preserveAspectRatio=True, mask="auto")
+        c.drawImage(ImageReader(str(vrp_img)), margin * 2 + chart_width, charts_y - chart_height, width=chart_width, height=chart_height, preserveAspectRatio=True, mask="auto")
 
-        def _fmt_value(value: float, suffix: str = "") -> str:
-            return f"{value:.2f}{suffix}" if math.isfinite(value) else f"N/A{suffix}"
+        dir_hrp = directivity_2d_cut(raw_hrp_angles, raw_hrp_values)
+        dir_hrp_db = 10 * np.log10(dir_hrp) if np.isfinite(dir_hrp) else float("nan")
 
-        metrics_lines = [
-            f"HPBW Horizontal: {_fmt_value(metrics['hrp_hpbw'], ' deg')}",
-            f"HPBW Vertical: {_fmt_value(metrics['vrp_hpbw'], ' deg')}",
-            f"Front-to-Back: {_fmt_value(metrics['front_to_back'], ' dB')}",
-            f"Ripple p2p: {_fmt_value(metrics['ripple_db'], ' dB')}",
-            f"SLL: {_fmt_value(metrics['sll_db'], ' dB')}",
-            f"Ganho estimado: {_fmt_value(metrics['gain_dbi'], ' dBi')}",
+        element_metrics = [
+            "Elementos (HRP/VRP)",
+            f"- HPBW HRP: {_format_value(hpbw_deg(raw_hrp_angles, raw_hrp_values), ' deg')}",
+            f"- Diretividade HRP: {_format_value(dir_hrp_db, ' dB')}",
+            f"- HPBW VRP: {_format_value(hpbw_deg(raw_vrp_angles, raw_vrp_values), ' deg')}",
+            f"- Primeiro nulo VRP: {_format_value(first_null_deg(raw_vrp_angles, raw_vrp_values), ' deg')}",
         ]
-        y -= chart_height + 20
+        array_lines = [
+            "Arranjo composto",
+            f"- HPBW Horizontal: {_format_value(array_metrics['hrp_hpbw'], ' deg')}",
+            f"- HPBW Vertical: {_format_value(array_metrics['vrp_hpbw'], ' deg')}",
+            f"- Front/Back: {_format_value(array_metrics['front_to_back'], ' dB')}",
+            f"- Ripple p2p: {_format_value(array_metrics['ripple_db'], ' dB')}",
+            f"- SLL: {_format_value(array_metrics['sll_db'], ' dB')}",
+            f"- Diretividade 2D: {_format_value(array_metrics['directivity_db'], ' dB')}",
+            f"- Ganho estimado: {_format_value(array_metrics['gain_dbi'], ' dBi')}",
+        ]
+        metrics_y = charts_y - chart_height - 20
         c.setFont("Helvetica", 10)
-        for line in metrics_lines:
-            c.drawString(margin, y, line)
-            y -= 12
+        for idx, line in enumerate(element_metrics):
+            c.drawString(margin, metrics_y - idx * 12, line)
+        for idx, line in enumerate(array_lines):
+            c.drawString(width / 2 + 10, metrics_y - idx * 12, line)
 
         c.showPage()
 
         available_width = width - 2 * margin
-        hrp_chunks = _build_table_chunks(hrp_angles, hrp_values, available_width)
-        vrp_chunks = _build_table_chunks(vrp_angles, vrp_values, available_width)
+        hrp_chunks = _build_table_chunks(hrp_full_angles, hrp_full_values, available_width)
+        vrp_chunks = _build_table_chunks(raw_vrp_angles, raw_vrp_values, available_width)
 
         for idx, chunk in enumerate(hrp_chunks):
             c.setFont("Helvetica-Bold", 14)
-            title = "Tabela HRP" + (" (continuacao)" if idx else "")
+            title = "Tabela HRP" + (" (continuação)" if idx else "")
             c.drawCentredString(width / 2, height - margin, title)
             w, h = chunk.wrap(available_width, height - margin * 2)
             chunk.drawOn(c, margin, height - margin - h - 24)
@@ -344,7 +280,7 @@ def _create_pdf_report(project: Project,
 
         for idx, chunk in enumerate(vrp_chunks):
             c.setFont("Helvetica-Bold", 14)
-            title = "Tabela VRP" + (" (continuacao)" if idx else "")
+            title = "Tabela VRP" + (" (continuação)" if idx else "")
             c.drawCentredString(width / 2, height - margin, title)
             w, h = chunk.wrap(available_width, height - margin * 2)
             chunk.drawOn(c, margin, height - margin - h - 24)
@@ -370,7 +306,49 @@ def _create_pdf_report(project: Project,
         tmp_dir.cleanup()
 
 
-def generate_project_export(project: Project, export_root: Path) -> ProjectExport:
+def write_pat_array(path: Path, description: str, gain: float, num_elems: int,
+                    angles_0_359: np.ndarray, values_0_359: np.ndarray,
+                    vertical_tail_angles: np.ndarray, vertical_tail_values: np.ndarray) -> None:
+    with path.open("w", encoding="utf-8") as f:
+        f.write(f"'{description}', {gain:.2f}, {num_elems}\n")
+        for ang in range(360):
+            val = float(np.interp(ang, angles_0_359, values_0_359))
+            f.write(f"{ang}, {val:.4f}\n")
+        for ang in [356, 357, 358, 359]:
+            val = float(np.interp(ang, angles_0_359, values_0_359))
+            f.write(f"{ang}, {val:.4f}\n")
+        f.write("999\n")
+        f.write("1, 91\n")
+        f.write("269,\n")
+        for ang in range(0, -91, -1):
+            v = float(np.interp(ang, vertical_tail_angles, vertical_tail_values))
+            f.write(f"{ang:.1f}, {v:.4f}\n")
+
+
+def write_prn(path: Path, name: str, make: str, frequency: float, freq_unit: str,
+              h_width: float, v_width: float, front_to_back: float, gain: float,
+              h_angles: np.ndarray, h_values: np.ndarray,
+              v_angles: np.ndarray, v_values: np.ndarray) -> None:
+    with path.open("w", encoding="utf-8") as f:
+        f.write(f"NAME {name}\n")
+        f.write(f"MAKE {make}\n")
+        f.write(f"FREQUENCY {frequency:.2f} {freq_unit}\n")
+        f.write(f"H_WIDTH {h_width:.2f}\n")
+        f.write(f"V_WIDTH {v_width:.2f}\n")
+        f.write(f"FRONT_TO_BACK {front_to_back:.2f}\n")
+        f.write(f"GAIN {gain:.2f} dBi\n")
+        f.write("TILT MECHANICAL\n")
+        f.write("HORIZONTAL 360\n")
+        for ang in range(360):
+            v = float(np.interp(ang, h_angles, h_values))
+            f.write(f"{ang}\t{lin_to_att_db(v):.4f}\n")
+        f.write("VERTICAL 360\n")
+        for ang in range(360):
+            v = float(np.interp(ang, v_angles, v_values))
+            f.write(f"{ang}\t{lin_to_att_db(v):.4f}\n")
+
+
+def generate_project_export(project: Project, export_root: Path) -> tuple[ProjectExport, ExportPaths]:
     export_root.mkdir(parents=True, exist_ok=True)
     data = compute_erp(project)
     hrp_angles, hrp_values = compose_horizontal_pattern(project)
@@ -387,6 +365,7 @@ def generate_project_export(project: Project, export_root: Path) -> ProjectExpor
         "sll_db": float(sidelobe_level_db(hrp_angles, hrp_values)),
         "peak_angle": float(peak_angle_deg(hrp_angles, hrp_values)),
         "gain_dbi": float(estimate_gain_dbi(hpbw_deg(hrp_angles, hrp_values), hpbw_deg(vrp_angles, vrp_values))),
+        "directivity_db": float(10 * np.log10(directivity_2d_cut(hrp_angles, hrp_values))) if np.any(hrp_values) else float("nan"),
     }
 
     export_paths = ExportPaths(export_root, project)
@@ -429,7 +408,18 @@ def generate_project_export(project: Project, export_root: Path) -> ProjectExpor
         val_full_vrp,
     )
 
-    _create_pdf_report(project, export_paths, ang_full_hrp, val_full_hrp, ang_full_vrp, val_full_vrp, data, metrics)
+    raw_hrp_angles, raw_hrp_values = _prepare_raw_pattern(project, PatternType.HRP)
+    raw_vrp_angles, raw_vrp_values = _prepare_raw_pattern(project, PatternType.VRP)
+
+    _create_pdf_report(
+        project,
+        export_paths,
+        raw_hrp_angles,
+        raw_hrp_values,
+        raw_vrp_angles,
+        raw_vrp_values,
+        metrics,
+    )
 
     export = ProjectExport(
         project=project,
@@ -445,4 +435,4 @@ def generate_project_export(project: Project, export_root: Path) -> ProjectExpor
     )
     db.session.add(export)
     db.session.commit()
-    return export
+    return export, export_paths

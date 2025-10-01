@@ -1,8 +1,8 @@
 ﻿{% extends "base.html" %}
 {% block content %}
-<h1>Padrões da antena {{ antenna.name }}</h1>
-<section>
-    <h2>Importar novo padrão</h2>
+<h1>Padroes da antena {{ antenna.name }}</h1>
+<section class="form-section">
+    <h2>Importar novo padrao</h2>
     <form method="post" enctype="multipart/form-data" class="form-compact pattern-upload">
         {{ form.hidden_tag() }}
         <label>{{ form.pattern_type.label }} {{ form.pattern_type() }}</label>
@@ -11,75 +11,25 @@
     </form>
 </section>
 <section>
-    <h2>Padrões existentes</h2>
+    <h2>Padroes existentes</h2>
     {% if pattern_previews %}
-    <div class="pattern-grid">
+    <div class="pattern-visuals">
         {% for preview in pattern_previews %}
-        <article class="card pattern-card">
+        <article class="pattern-figure">
             <header>
                 <h3>{{ preview.type }}</h3>
-                <p>{{ preview.angles|length }} pontos</p>
             </header>
-            <canvas id="pattern-chart-{{ loop.index0 }}" width="320" height="200"
-                    data-angles='{{ preview.angles|tojson }}'
-                    data-values='{{ preview.values|tojson }}'
-                    data-label="{{ preview.type }}"></canvas>
+            <img src="{{ preview.image }}" alt="Pre-visualizacao {{ preview.type }}" loading="lazy">
+            <ul class="metric-list">
+                {% for line in preview.stats %}
+                <li>{{ line }}</li>
+                {% endfor %}
+            </ul>
         </article>
         {% endfor %}
     </div>
     {% else %}
-    <p>Nenhum padrão importado.</p>
+    <p>Nenhum padrao importado.</p>
     {% endif %}
 </section>
-{% endblock %}
-
-{% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-(function() {
-  const canvases = document.querySelectorAll('.pattern-card canvas');
-  canvases.forEach((canvas) => {
-    const angles = JSON.parse(canvas.dataset.angles || '[]');
-    const values = JSON.parse(canvas.dataset.values || '[]');
-    if (!angles.length || !values.length) return;
-    const ctx = canvas.getContext('2d');
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: angles,
-        datasets: [{
-          label: canvas.dataset.label || 'Pattern',
-          data: values,
-          borderColor: '#0A4E8B',
-          backgroundColor: 'rgba(10, 78, 139, 0.12)',
-          borderWidth: 1.4,
-          pointRadius: 0,
-          tension: 0.2,
-        }],
-      },
-      options: {
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            title: { display: true, text: 'Ângulo (graus)' },
-            ticks: { maxTicksLimit: 8 }
-          },
-          y: {
-            title: { display: true, text: 'Amplitude (linear)' },
-            beginAtZero: true
-          }
-        },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => `Ângulo ${ctx.label}: ${ctx.parsed.y.toFixed(4)}`
-            }
-          }
-        }
-      }
-    });
-  });
-})();
-</script>
 {% endblock %}

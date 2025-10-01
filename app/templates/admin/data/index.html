@@ -1,0 +1,12 @@
+﻿{% extends "base.html" %}
+{% block content %}
+<h1>Gerenciador de Dados</h1>
+<section class="dashboard-section">
+    <p>Selecione uma tabela para visualizar e editar registros:</p>
+    <ul>
+        {% for key, model in models.items() %}
+        <li><a href="{{ url_for('admin.data_list', model_name=key) }}">{{ key|capitalize }}</a></li>
+        {% endfor %}
+    </ul>
+</section>
+{% endblock %}

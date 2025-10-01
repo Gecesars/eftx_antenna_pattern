@@ -28,6 +28,12 @@ class BaseConfig:
     RATE_LIMIT_API = os.getenv("RATE_LIMIT_API", "60 per minute")
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
     EXPORT_ROOT = os.getenv("EXPORT_ROOT", "exports")
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY") or SECRET_KEY
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=int(os.getenv("JWT_ACCESS_TOKEN_MINUTES", "30")))
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=int(os.getenv("JWT_REFRESH_TOKEN_DAYS", "30")))
+    JWT_TOKEN_LOCATION = ["headers"]
+    JWT_HEADER_TYPE = "Bearer"
+    PREVIEW_IMAGE_ROOT = os.getenv("PREVIEW_IMAGE_ROOT", "generated/previews")
 
 
 class DevelopmentConfig(BaseConfig):

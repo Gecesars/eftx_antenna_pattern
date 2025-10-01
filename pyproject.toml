@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "eftx-antenna-pattern"
 version = "0.1.0"
 description = "EFTX antenna composition and ERP designer web app"

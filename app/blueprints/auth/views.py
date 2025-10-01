@@ -1,13 +1,15 @@
 ﻿from __future__ import annotations
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for, jsonify
 from flask_login import current_user, login_user, logout_user
+
+from flask_jwt_extended import create_access_token, create_refresh_token, current_user as jwt_current_user, get_jwt_identity, jwt_required
 
 from ...extensions import db, limiter
 from ...forms.auth import LoginForm, RegistrationForm, ResendConfirmationForm
 from ...models import User
 from ...services.email import send_admin_cnpj_alert, send_confirmation_email
-from ...utils.security import confirm_email_token, generate_email_token, hash_password, verify_password
+from ...utils.security import confirm_email_token, generate_email_token, hash_password, password_needs_rehash, verify_password
 
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -136,6 +138,9 @@ def login():
             current_app.logger.warning("Conta inativa tentou login: %s", user.email)
             flash("Conta desativada.", "danger")
         else:
+            if password_needs_rehash(user.password_hash):
+                user.password_hash = hash_password(form.password.data)
+                db.session.commit()
             login_user(user, remember=form.remember.data)
             current_app.logger.info("Login bem-sucedido para %s", user.email)
             return redirect(request.args.get("next") or url_for("projects.dashboard"))
@@ -154,3 +159,65 @@ def logout():
 
 
 
+@auth_bp.route("/token", methods=["POST"])
+@limiter.limit(auth_limit)
+def issue_token():
+    payload = request.get_json(silent=True) or {}
+    email = (payload.get("email") or "").strip().lower()
+    password = payload.get("password") or ""
+    if not email or not password:
+        return jsonify({"error": "invalid_request", "message": "Informe email e senha."}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user or not verify_password(user.password_hash, password):
+        current_app.logger.warning("Falha ao gerar token para %s", email)
+        return jsonify({"error": "invalid_credentials"}), 401
+    if not user.email_confirmed:
+        return jsonify({"error": "email_not_confirmed"}), 403
+    if not user.is_active:
+        return jsonify({"error": "account_inactive"}), 403
+
+    if password_needs_rehash(user.password_hash):
+        user.password_hash = hash_password(password)
+        db.session.commit()
+
+    claims = {"role": user.role}
+    access_token = create_access_token(identity=str(user.id), additional_claims=claims)
+    refresh_token = create_refresh_token(identity=str(user.id), additional_claims=claims)
+    current_app.logger.info("Token emitido para %s", user.email)
+    return jsonify({
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "Bearer",
+        "user": {
+            "id": str(user.id),
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role,
+            "email_confirmed": user.email_confirmed,
+        },
+    })
+
+
+@auth_bp.route("/token/refresh", methods=["POST"])
+@limiter.limit(auth_limit)
+@jwt_required(refresh=True)
+def refresh_access_token():
+    identity = get_jwt_identity()
+    role = getattr(jwt_current_user, "role", None)
+    claims = {"role": role} if role else None
+    access_token = create_access_token(identity=identity, additional_claims=claims)
+    response = {
+        "access_token": access_token,
+        "token_type": "Bearer",
+    }
+    user = jwt_current_user
+    if user:
+        response["user"] = {
+            "id": str(user.id),
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role,
+            "email_confirmed": user.email_confirmed,
+        }
+    return jsonify(response)

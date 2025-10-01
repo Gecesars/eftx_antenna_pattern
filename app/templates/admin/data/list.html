@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ model_name|capitalize }} - Registros</h1>
+<section class="dashboard-section">
+    <p><a class="btn" href="{{ url_for('admin.data_index') }}">Voltar</a></p>
+    {% if rows %}
+    <table class="project-table">
+        <thead>
+            <tr>
+                {% for col in columns %}
+                <th>{{ col }}</th>
+                {% endfor %}
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                {% for col in columns %}
+                <td>{{ row.values[col] }}</td>
+                {% endfor %}
+                <td><a class="btn" href="{{ url_for('admin.data_edit', model_name=model_name, record_id=row.pk) }}">Editar</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>Nenhum registro encontrado.</p>
+    {% endif %}
+</section>
+{% endblock %}

@@ -30,7 +30,7 @@ def resample_pattern(angles: Iterable[float], amplitudes: Iterable[float], start
 def resample_vertical(angles: Iterable[float], amplitudes: Iterable[float]) -> tuple[np.ndarray, np.ndarray]:
     src_angles = np.asarray(list(angles), dtype=float)
     src_amp = np.asarray(list(amplitudes), dtype=float)
-    dest_angles = np.arange(-90, 91, 1, dtype=float)
+    dest_angles = np.round(np.arange(-90.0, 90.0 + 0.0001, 0.1), 1)
     sort_idx = np.argsort(src_angles)
     src_angles = src_angles[sort_idx]
     src_amp = src_amp[sort_idx]
@@ -103,7 +103,7 @@ def compose_vertical_pattern(project: Project) -> tuple[np.ndarray, np.ndarray]:
     antenna: Antenna = project.antenna
     vrp = antenna.pattern_for(PatternType.VRP)
     if not vrp:
-        angles = np.arange(-90, 91)
+        angles = np.round(np.arange(-90.0, 90.0 + 0.0001, 0.1), 1)
         return angles, np.ones_like(angles, dtype=float)
     base_angles, base_amp = np.array(vrp.angles_deg, dtype=float), np.array(vrp.amplitudes_linear, dtype=float)
     angles, amp = resample_vertical(base_angles, base_amp)

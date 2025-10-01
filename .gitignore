@@ -123,3 +123,4 @@ coverage_html/
 
 # Announcement
 
+app/static/generated/

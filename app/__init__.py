@@ -1,15 +1,14 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import uuid
 
 from flask import Flask
 
 from .config import config_by_name
-from .extensions import csrf, db, limiter, login_manager, mail, migrate
+from .extensions import csrf, db, limiter, login_manager, mail, migrate, jwt
 from .utils.templating import register_template_globals
 from .blueprints import register_blueprints
 from .cli import register_cli
-
 
 def create_app(config_name: str | None = None) -> Flask:
     app = Flask(__name__, instance_relative_config=False)
@@ -25,7 +24,6 @@ def create_app(config_name: str | None = None) -> Flask:
 
     return app
 
-
 def register_extensions(app: Flask) -> None:
     db.init_app(app)
     migrate.init_app(app, db)
@@ -33,6 +31,7 @@ def register_extensions(app: Flask) -> None:
     csrf.init_app(app)
     mail.init_app(app)
     limiter.init_app(app)
+    jwt.init_app(app)
 
     login_manager.login_view = "auth.login"
     login_manager.session_protection = "strong"
@@ -48,5 +47,13 @@ def register_extensions(app: Flask) -> None:
             return None
         return db.session.get(User, user_uuid)
 
-
-
+    @jwt.user_lookup_loader
+    def user_lookup_callback(_jwt_header, jwt_data):
+        identity = jwt_data.get("sub")
+        try:
+            user_uuid = uuid.UUID(identity) if identity else None
+        except ValueError:
+            return None
+        if user_uuid is None:
+            return None
+        return db.session.get(User, user_uuid)

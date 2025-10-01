@@ -1,27 +1,105 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block content %}
-<h1>Seus projetos</h1>
-<a class="btn-primary" href="{{ url_for('projects.create') }}">Novo projeto</a>
-<table class="table">
-    <thead>
-        <tr>
-            <th>Nome</th>
-            <th>Antena</th>
-            <th>Frequência</th>
-            <th>Atualizado</th>
-        </tr>
-    </thead>
-    <tbody>
+{% set metrics = namespace(exports=0, last=None) %}
+{% for project in projects %}
+    {% set metrics.exports = metrics.exports + (project.revisions|length) %}
+    {% if project.updated_at and (metrics.last is none or project.updated_at > metrics.last) %}
+        {% set metrics.last = project.updated_at %}
+    {% endif %}
+{% endfor %}
+<section class="dashboard-hero">
+    <div class="hero-intro">
+        <h1>Projetos de antenas</h1>
+        <p>Gerencie suas configuracoes, acompanhe exportacoes e mantenha o portfolio EFTX sempre alinhado aos requisitos tecnicos.</p>
+        <div class="quick-actions">
+            <a class="btn-primary" href="{{ url_for('projects.create') }}">Criar novo projeto</a>
+            <a class="btn" href="{{ url_for('public.home') }}#portfolio">Ver antenas disponiveis</a>
+        </div>
+    </div>
+    <div class="metric-grid">
+        <div class="metric-card">
+            <span>Total de projetos</span>
+            <strong>{{ projects|length }}</strong>
+            <small>cadastrados por voce</small>
+        </div>
+        <div class="metric-card">
+            <span>Exportacoes geradas</span>
+            <strong>{{ metrics.exports }}</strong>
+            <small>PDF, PAT e PRN</small>
+        </div>
+        <div class="metric-card">
+            <span>Ultima atualizacao</span>
+            {% if metrics.last %}
+            <strong>{{ metrics.last.strftime('%d/%m/%Y') }}</strong>
+            <small>{{ metrics.last.strftime('%H:%M') }}</small>
+            {% else %}
+            <strong>--</strong>
+            <small>nenhum projeto atualizado</small>
+            {% endif %}
+        </div>
+    </div>
+</section>
+<section class="dashboard-section">
+    <div class="section-header">
+        <h2>Projetos recentes</h2>
+        <div class="quick-actions">
+            <a class="btn" href="{{ url_for('projects.create') }}">Novo projeto</a>
+        </div>
+    </div>
+    {% if projects %}
+    <table class="project-table">
+        <thead>
+            <tr>
+                <th>Projeto</th>
+                <th>Antena</th>
+                <th>Frequencia</th>
+                <th>Atualizado</th>
+                <th>Exportacoes</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
         {% for project in projects %}
-        <tr>
-            <td><a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.name }}</a></td>
-            <td>{{ project.antenna.name }}</td>
-            <td>{{ '%.1f'|format(project.frequency_mhz) }} MHz</td>
-            <td>{{ project.updated_at.strftime('%d/%m/%Y %H:%M') if project.updated_at }}</td>
-        </tr>
-        {% else %}
-        <tr><td colspan="4">Nenhum projeto criado.</td></tr>
+            <tr>
+                <td><a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.name }}</a></td>
+                <td>{{ project.antenna.name }}</td>
+                <td>{{ '%.1f'|format(project.frequency_mhz) }} MHz</td>
+                <td>{% if project.updated_at %}{{ project.updated_at.strftime('%d/%m/%Y %H:%M') }}{% else %}--{% endif %}</td>
+                <td><span class="badge">{{ project.revisions|length }}</span></td>
+                <td><a class="btn" href="{{ url_for('projects.detail', project_id=project.id) }}">Abrir</a></td>
+            </tr>
         {% endfor %}
-    </tbody>
-</table>
+        </tbody>
+    </table>
+    {% else %}
+    <p>Nenhum projeto cadastrado. Comece criando o primeiro projeto do portfolio EFTX.</p>
+    {% endif %}
+</section>
+<section class="dashboard-section" id="relatorios">
+    <h2>Relatorios recentes</h2>
+    {% set exports_state = namespace(has=false) %}
+    <div class="export-grid">
+        {% for project in projects %}
+            {% set latest_export = (project.revisions|sort(attribute='created_at'))|last %}
+            {% if latest_export %}
+                {% set exports_state.has = True %}
+                <article class="export-card">
+                    <header>
+                        <h3>{{ project.name }}</h3>
+                        <span class="badge">{{ '%.1f'|format(project.frequency_mhz) }} MHz</span>
+                    </header>
+                    <time>{% if latest_export.created_at %}{{ latest_export.created_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}</time>
+                    <div class="quick-actions">
+                        <a class="btn" href="{{ url_for('projects.download', project_id=project.id, export_id=latest_export.id, file_type='pat') }}">PAT</a>
+                        <a class="btn" href="{{ url_for('projects.download', project_id=project.id, export_id=latest_export.id, file_type='prn') }}">PRN</a>
+                        <a class="btn-primary" href="{{ url_for('projects.download', project_id=project.id, export_id=latest_export.id, file_type='pdf') }}">PDF</a>
+                    </div>
+                </article>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% if not exports_state.has %}
+        <p>Nenhum relatorio gerado ainda. Gere a primeira exportacao a partir da pagina do projeto.</p>
+    {% endif %}
+</section>
 {% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ model_name|capitalize }} - Editar</h1>
+<section class="dashboard-section">
+    <p>
+        <a class="btn" href="{{ url_for('admin.data_list', model_name=model_name) }}">Voltar</a>
+        <strong>ID:</strong> {{ record|attr(pk_name) }}
+    </p>
+    <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% for column in columns %}
+            <div class="form-field{% if column.primary_key %} disabled{% endif %}">
+                <label>{{ column.key }}{% if column.primary_key %} (somente leitura){% endif %}</label>
+                {% if column.primary_key %}
+                    <input type="text" value="{{ record|attr(column.key) }}" readonly>
+                {% else %}
+                    {% set value = values[column.key] %}
+                    {% if value|length > 80 %}
+                        <textarea name="{{ column.key }}" rows="4">{{ value }}</textarea>
+                    {% else %}
+                        <input type="text" name="{{ column.key }}" value="{{ value }}">
+                    {% endif %}
+                {% endif %}
+            </div>
+        {% endfor %}
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Salvar</button>
+        </div>
+    </form>
+    <p class="help">Campos JSON devem ser informados como JSON valido. Datas em formato ISO 8601.</p>
+</section>
+{% endblock %}

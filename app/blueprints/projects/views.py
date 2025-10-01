@@ -1,10 +1,25 @@
 ﻿from __future__ import annotations
 
+import io
 import json
+import re
+import zipfile
+from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
-from flask import Blueprint, current_app, flash, redirect, render_template, url_for, abort, send_from_directory, request
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    send_from_directory,
+    url_for,
+)
 from flask_login import current_user, login_required
 
 from ...extensions import db
@@ -12,11 +27,11 @@ from ...forms.project import ProjectForm
 from ...models import Antenna, Project, ProjectExport
 from ...services.exporters import generate_project_export
 from ...services.pattern_composer import compute_erp
+from ...services.visuals import generate_project_previews
 from ...utils.calculations import total_feeder_loss, vertical_beta_deg
 
 
 projects_bp = Blueprint("projects", __name__, url_prefix="/projects")
-
 
 
 
@@ -35,6 +50,7 @@ def _populate_vertical_beta_from_form(form, fallback: Project | None = None) -> 
         if data in (None, ""):
             return default
         return data
+
     fallback_freq = getattr(fallback, "frequency_mhz", 0.0) if fallback else 0.0
     fallback_spacing = getattr(fallback, "v_spacing_m", 0.0) if fallback else 0.0
     fallback_tilt = getattr(fallback, "v_tilt_deg", 0.0) if fallback else 0.0
@@ -42,6 +58,12 @@ def _populate_vertical_beta_from_form(form, fallback: Project | None = None) -> 
     spacing = _value(form.v_spacing_m, fallback_spacing)
     tilt = _value(form.v_tilt_deg, fallback_tilt)
     form.v_beta_deg.data = vertical_beta_deg(freq or 0.0, spacing or 0.0, tilt or 0.0)
+
+
+def _slugify(value: str) -> str:
+    value = re.sub(r"[^A-Za-z0-9_-]+", "-", value).strip("-")
+    return value or "export"
+
 
 @projects_bp.route("/dashboard")
 @login_required
@@ -56,7 +78,39 @@ def detail(project_id):
     project = Project.query.filter_by(id=project_id, owner_id=current_user.id).first_or_404()
     data = compute_erp(project)
     data_payload = {k: v.tolist() if hasattr(v, "tolist") else v for k, v in data.items()}
-    return render_template("projects/detail.html", project=project, data=data, data_payload=data_payload)
+    erp_rows = [
+        (
+            int(angle % 360),
+            float(erp_w),
+            float(erp_dbw),
+        )
+        for angle, erp_w, erp_dbw in zip(
+            data.get("angles_deg", []),
+            data.get("erp_w", []),
+            data.get("erp_dbw", []),
+        )
+    ]
+    previews = generate_project_previews(project)
+    latest_export = None
+    latest_files = {}
+    if project.revisions:
+        latest_export = max(project.revisions, key=lambda exp: exp.created_at or datetime.min)
+        latest_files = {
+            "pdf": url_for("projects.download", project_id=project.id, export_id=latest_export.id, file_type="pdf"),
+            "pat": url_for("projects.download", project_id=project.id, export_id=latest_export.id, file_type="pat"),
+            "prn": url_for("projects.download", project_id=project.id, export_id=latest_export.id, file_type="prn"),
+            "bundle": url_for("projects.download_bundle", project_id=project.id, export_id=latest_export.id),
+        }
+    return render_template(
+        "projects/detail.html",
+        project=project,
+        data=data,
+        data_payload=data_payload,
+        erp_rows=erp_rows,
+        previews=previews,
+        latest_export=latest_export,
+        latest_files=latest_files,
+    )
 
 
 @projects_bp.route("/new", methods=["GET", "POST"])
@@ -195,9 +249,19 @@ def edit(project_id):
 def export(project_id):
     project = Project.query.filter_by(id=project_id, owner_id=current_user.id).first_or_404()
     export_root = Path(current_app.config.get("EXPORT_ROOT", "exports"))
-    generate_project_export(project, export_root)
-    flash("Arquivos gerados!", "success")
-    return redirect(url_for("projects.detail", project_id=project.id))
+    export, paths = generate_project_export(project, export_root)
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.write(paths.pdf, arcname=paths.pdf.name)
+        zf.write(paths.pat, arcname=paths.pat.name)
+        zf.write(paths.prn, arcname=paths.prn.name)
+    zip_buffer.seek(0)
+
+    safe_name = _slugify(project.name)
+    download_name = f"{safe_name}-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.zip"
+    return send_file(zip_buffer, mimetype="application/zip", as_attachment=True, download_name=download_name)
+
 
 @projects_bp.route("/<uuid:project_id>/download/<uuid:export_id>/<file_type>")
 @login_required
@@ -222,3 +286,35 @@ def download(project_id, export_id, file_type):
     if not path.exists():
         abort(404)
     return send_from_directory(path.parent, path.name, as_attachment=True)
+
+
+@projects_bp.route("/<uuid:project_id>/download/<uuid:export_id>/bundle")
+@login_required
+def download_bundle(project_id, export_id):
+    project = Project.query.filter_by(id=project_id, owner_id=current_user.id).first_or_404()
+    export = ProjectExport.query.filter_by(id=export_id, project_id=project.id).first_or_404()
+    export_root = Path(current_app.config.get("EXPORT_ROOT", "exports")).resolve()
+
+    def _resolve(relative: str) -> Path:
+        p = Path(relative)
+        return (export_root / p).resolve() if not p.is_absolute() else p.resolve()
+
+    files = [
+        _resolve(export.pdf_path),
+        _resolve(export.pat_path),
+        _resolve(export.prn_path),
+    ]
+    for file_path in files:
+        if export_root not in file_path.parents and file_path != export_root:
+            abort(403)
+        if not file_path.exists():
+            abort(404)
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for file_path in files:
+            zf.write(file_path, arcname=file_path.name)
+    zip_buffer.seek(0)
+
+    safe_name = _slugify(f"{project.name}-{export.created_at.strftime('%Y%m%d-%H%M%S') if export.created_at else 'export'}")
+    return send_file(zip_buffer, mimetype="application/zip", as_attachment=True, download_name=f"{safe_name}.zip")
