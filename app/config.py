@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import os
 from datetime import timedelta
@@ -10,7 +10,11 @@ class BaseConfig:
         "DATABASE_URL",
         "postgresql+psycopg2://postgres:postgres@localhost:5432/eftx",
     )
-    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "pool_size": int(os.getenv("DB_POOL_SIZE", "10")),
+        "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "20")),
+    }
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SESSION_COOKIE_SECURE = False
     REMEMBER_COOKIE_DURATION = timedelta(days=14)
@@ -28,12 +32,12 @@ class BaseConfig:
     RATE_LIMIT_API = os.getenv("RATE_LIMIT_API", "60 per minute")
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
     EXPORT_ROOT = os.getenv("EXPORT_ROOT", "exports")
+    PREVIEW_IMAGE_ROOT = os.getenv("PREVIEW_IMAGE_ROOT", "generated/previews")
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY") or SECRET_KEY
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=int(os.getenv("JWT_ACCESS_TOKEN_MINUTES", "30")))
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=int(os.getenv("JWT_REFRESH_TOKEN_DAYS", "30")))
     JWT_TOKEN_LOCATION = ["headers"]
     JWT_HEADER_TYPE = "Bearer"
-    PREVIEW_IMAGE_ROOT = os.getenv("PREVIEW_IMAGE_ROOT", "generated/previews")
 
 
 class DevelopmentConfig(BaseConfig):
