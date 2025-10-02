@@ -5,10 +5,17 @@ from pathlib import Path
 from uuid import UUID
 
 from flask import Blueprint, abort, current_app, jsonify, request
-from flask_jwt_extended import current_user as jwt_current_user, jwt_required
+from flask_jwt_extended import current_user as jwt_current_user, jwt_required, verify_jwt_in_request
+from flask_login import current_user as login_current_user
 
 from ...extensions import db, limiter
 from ...models import Antenna, Project, ProjectExport
+from ...services.assistant import (
+    AssistantServiceError,
+    ConversationSnapshot,
+    send_assistant_message,
+    snapshot_for,
+)
 from ...services.exporters import generate_project_export
 from ...services.pattern_composer import compute_erp
 from ...utils.calculations import total_feeder_loss, vertical_beta_deg
@@ -156,6 +163,23 @@ def _erp_payload(data: dict) -> dict:
     return result
 
 
+def _snapshot_to_dict(snapshot: ConversationSnapshot) -> dict:
+    return {
+        "conversation_id": str(snapshot.conversation.id),
+        "title": snapshot.conversation.title,
+        "messages": [
+            {
+                "id": str(message.id),
+                "role": message.role,
+                "content": message.content,
+                "token_count": message.token_count,
+                "created_at": message.created_at.isoformat() if message.created_at else None,
+            }
+            for message in snapshot.messages
+        ],
+    }
+
+
 def _get_project_for_user(project_id) -> Project:
     try:
         project_uuid = UUID(str(project_id))
@@ -278,6 +302,19 @@ def _update_project_from_payload(project: Project, payload: dict) -> None:
             project.splitter_loss_db,
             project.connector_loss_db,
         )
+
+
+def _resolve_actor():
+    if login_current_user.is_authenticated:
+        return login_current_user
+    try:
+        verify_jwt_in_request(optional=True)
+    except Exception:
+        pass
+    user = jwt_current_user
+    if getattr(user, "id", None):
+        return user
+    abort(401, description="Autenticacao obrigatoria.")
 
 
 @api_bp.route("/antennas", methods=["GET"])
@@ -480,3 +517,34 @@ def project_patterns(project_id):
             setattr(project, field, value)
         project.feeder_loss_db = originals.get("feeder_loss_db", project.feeder_loss_db)
     return jsonify(_erp_payload(data))
+
+
+@api_bp.route("/assistant/conversation", methods=["GET"])
+@jwt_required(optional=True)
+@limiter.limit(api_limit)
+def get_assistant_conversation():
+    user = _resolve_actor()
+    snapshot = snapshot_for(user)
+    db.session.commit()
+    return jsonify(_snapshot_to_dict(snapshot))
+
+
+@api_bp.route("/assistant/message", methods=["POST"])
+@jwt_required(optional=True)
+@limiter.limit(api_limit)
+def post_assistant_message():
+    payload = request.get_json(silent=True) or {}
+    message = (payload.get("message") or "").strip()
+    if not message:
+        abort(400, description="Campo message e obrigatorio.")
+    user = _resolve_actor()
+    try:
+        snapshot = send_assistant_message(user, message)
+        db.session.commit()
+    except AssistantServiceError as exc:
+        db.session.rollback()
+        abort(503, description=str(exc))
+    except Exception:
+        db.session.rollback()
+        raise
+    return jsonify(_snapshot_to_dict(snapshot)), 201

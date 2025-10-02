@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 from datetime import datetime
@@ -13,7 +13,7 @@ from sqlalchemy.inspection import inspect
 
 from ...extensions import db
 from ...forms.admin import AntennaForm, PatternUploadForm
-from ...models import Antenna, AntennaPattern, PatternType, Project, ProjectExport, User
+from ...models import Antenna, AntennaPattern, AntennaPatternPoint, PatternType, Project, ProjectAntenna, ProjectExport, User
 from ...services.pattern_composer import resample_pattern, resample_vertical
 from ...services.pattern_parser import parse_pattern_bytes
 from ...services.visuals import generate_pattern_previews
@@ -125,10 +125,21 @@ def antennas_patterns(antenna_id):
         pattern = AntennaPattern.query.filter_by(antenna_id=antenna.id, pattern_type=pattern_type).first()
         if not pattern:
             pattern = AntennaPattern(antenna=antenna, pattern_type=pattern_type)
+            db.session.add(pattern)
+            db.session.flush()
 
-        pattern.angles_deg = np.asarray(resampled_angles, dtype=float).tolist()
-        pattern.amplitudes_linear = np.asarray(resampled_values, dtype=float).tolist()
-        db.session.add(pattern)
+        if pattern.id:
+            AntennaPatternPoint.query.filter_by(pattern_id=pattern.id).delete(synchronize_session=False)
+
+        angles_list = np.asarray(resampled_angles, dtype=float).tolist()
+        values_list = np.asarray(resampled_values, dtype=float).tolist()
+        pattern.replace_points(angles_list, values_list)
+        pattern.metadata_json = {
+            "angles_deg": angles_list,
+            "amplitudes_linear": values_list,
+            "imported_at": datetime.utcnow().isoformat(),
+            "source": getattr(file, "filename", None),
+        }
         db.session.commit()
         flash("Padrao importado com sucesso.", "success")
         return redirect(url_for("admin.antennas_patterns", antenna_id=antenna.id))

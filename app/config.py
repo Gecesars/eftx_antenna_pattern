@@ -38,6 +38,19 @@ class BaseConfig:
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=int(os.getenv("JWT_REFRESH_TOKEN_DAYS", "30")))
     JWT_TOKEN_LOCATION = ["headers"]
     JWT_HEADER_TYPE = "Bearer"
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyD_8mCA4c0shUVJCX4avi8g0HAoC7Cxe0s")
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-2.0-flash")
+    ASSISTANT_HISTORY_LIMIT = int(os.getenv("ASSISTANT_HISTORY_LIMIT", "12"))
+    ASSISTANT_SYSTEM_PROMPT = os.getenv(
+        "ASSISTANT_SYSTEM_PROMPT",
+        (
+            "Voce e o Assistente Inteligente EFTX. Ajude o usuario a explorar o "
+            "aplicativo de composicao e exportacao de diagramas de antenas. Resuma "
+            "conceitos tecnicos em passos claros, sugira proximos comandos dentro "
+            "da interface e oriente como interpretar metricas sem prometer resultados "
+            "fora do sistema. Mantenha o tom profissional, cordial e objetivo."
+        ),
+    )
 
 
 class DevelopmentConfig(BaseConfig):

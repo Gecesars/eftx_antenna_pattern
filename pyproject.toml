@@ -24,7 +24,8 @@ dependencies = [
     "matplotlib>=3.9",
     "reportlab>=4.2",
     "pypdf>=5.0",
-    "Pillow>=10.3"
+    "Pillow>=10.3",
+    "google-generativeai>=0.6.0"
 ]
 
 [project.optional-dependencies]

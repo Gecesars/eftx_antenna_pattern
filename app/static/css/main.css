@@ -580,3 +580,204 @@ input, select, textarea { padding: 0.5rem; border-radius: 6px; border: 1px solid
     transform: none !important;
   }
 }
+
+.assistant-toggle {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.75rem 1.2rem;
+  border: none;
+  border-radius: 999px;
+  background: #0a4e8b;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(3, 31, 61, 0.28);
+  z-index: 2200;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.assistant-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px rgba(3, 31, 61, 0.32);
+}
+
+.assistant-toggle .assistant-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ffb347 0%, #ff6a3d 100%);
+  color: #031f3d;
+  font-size: 1.25rem;
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.2);
+}
+
+.assistant-panel {
+  position: fixed;
+  bottom: 5.5rem;
+  right: 1.5rem;
+  width: min(360px, calc(100% - 3rem));
+  max-height: 480px;
+  display: none;
+  flex-direction: column;
+  background: #fefefe;
+  border-radius: 18px;
+  box-shadow: 0 18px 46px rgba(3, 31, 61, 0.28);
+  overflow: hidden;
+  z-index: 2200;
+  border: 1px solid rgba(10, 78, 139, 0.12);
+}
+
+.assistant-panel.is-open {
+  display: flex;
+}
+
+.assistant-panel.is-loading {
+  opacity: 0.8;
+}
+
+.assistant-header {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem 1.2rem;
+  background: linear-gradient(135deg, rgba(10, 78, 139, 0.96), rgba(3, 31, 61, 0.96));
+  color: #fff;
+}
+
+.assistant-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.assistant-title span {
+  display: block;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.assistant-close {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.assistant-messages {
+  flex: 1;
+  padding: 1rem 1.2rem;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #f5f9ff 0%, #ffffff 45%);
+}
+
+.assistant-message {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.9rem;
+  max-width: 100%;
+}
+
+.assistant-message.from-user {
+  align-items: flex-end;
+}
+
+.assistant-message.from-assistant {
+  align-items: flex-start;
+}
+
+.assistant-bubble {
+  padding: 0.75rem 0.9rem;
+  border-radius: 14px;
+  box-shadow: 0 10px 22px rgba(3, 31, 61, 0.12);
+  background: #0a4e8b;
+  color: #fff;
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.assistant-message.from-assistant .assistant-bubble {
+  background: #ffffff;
+  color: #1f2933;
+  border: 1px solid rgba(10, 78, 139, 0.12);
+  box-shadow: 0 12px 24px rgba(3, 31, 61, 0.12);
+}
+
+.assistant-meta {
+  font-size: 0.7rem;
+  color: rgba(31, 41, 51, 0.6);
+}
+
+.assistant-message.from-user .assistant-meta {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.assistant-status {
+  min-height: 1.3rem;
+  padding: 0 1.2rem 0.4rem;
+  font-size: 0.8rem;
+  color: #0a4e8b;
+}
+
+.assistant-status.error {
+  color: #d12c2c;
+}
+
+.assistant-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem 1.2rem 1.1rem;
+  background: #fff;
+  border-top: 1px solid rgba(10, 78, 139, 0.12);
+}
+
+.assistant-form textarea {
+  min-height: 64px;
+  resize: vertical;
+  border-radius: 12px;
+  border: 1px solid rgba(10, 78, 139, 0.25);
+  padding: 0.75rem;
+  font-family: inherit;
+}
+
+.assistant-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.assistant-form button {
+  border: none;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .assistant-panel {
+    width: calc(100% - 1.5rem);
+    right: 0.75rem;
+    left: 0.75rem;
+    bottom: 6rem;
+  }
+  .assistant-toggle {
+    right: 0.75rem;
+    bottom: 1rem;
+  }
+}

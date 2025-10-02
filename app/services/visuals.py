@@ -98,6 +98,22 @@ def _save_planar_plot(path: Path, angles: np.ndarray, values: np.ndarray, title:
 def _prepare_pattern(pattern: AntennaPattern) -> tuple[np.ndarray, np.ndarray]:
     angles = np.asarray(pattern.angles_deg, dtype=float)
     values = np.asarray(pattern.amplitudes_linear, dtype=float)
+
+    if angles.size == 0 or values.size == 0:
+        legacy = getattr(pattern, "metadata_json", None) or {}
+        legacy_angles = np.asarray(legacy.get("angles_deg", []), dtype=float)
+        legacy_values = np.asarray(legacy.get("amplitudes_linear", []), dtype=float)
+        if legacy_angles.size and legacy_values.size:
+            angles = legacy_angles
+            values = legacy_values
+
+    if angles.size == 0 or values.size == 0:
+        if pattern.pattern_type is PatternType.HRP:
+            angles = np.linspace(-180.0, 180.0, num=361)
+        else:
+            angles = np.linspace(-90.0, 90.0, num=181)
+        values = np.zeros_like(angles)
+
     values = np.clip(values, 0.0, None)
     if pattern.pattern_type is PatternType.HRP:
         return resample_pattern(angles, values, -180, 180, 1)

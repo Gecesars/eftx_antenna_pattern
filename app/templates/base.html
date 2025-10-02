@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <script defer src="{{ url_for('static', filename='js/designer.js') }}"></script>
     <script defer src="{{ url_for('static', filename='js/forms.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='js/assistant.js') }}"></script>
 </head>
 <body class="{% if current_user.is_authenticated %}app-auth{% else %}app-public{% endif %}">
 <header class="topbar">
@@ -74,6 +75,43 @@
 <footer class="footer">
     <p>&copy; {{ 2025 }} EFTX Telecom</p>
 </footer>
+{% if current_user.is_authenticated %}
+<div
+    class="assistant-panel"
+    id="assistant-panel"
+    data-fetch-url="{{ url_for('api.get_assistant_conversation') }}"
+    data-post-url="{{ url_for('api.post_assistant_message') }}"
+    aria-live="polite"
+>
+    <header class="assistant-header">
+        <div class="assistant-avatar" aria-hidden="true">AI</div>
+        <div class="assistant-title">
+            <strong>Assistente EFTX</strong>
+            <span>Orientacoes inteligentes sobre o app</span>
+        </div>
+        <button type="button" class="assistant-close" data-role="close" aria-label="Ocultar assistente">&times;</button>
+    </header>
+    <div class="assistant-messages" data-role="messages"></div>
+    <div class="assistant-status" data-role="status"></div>
+    <form class="assistant-form" data-role="form">
+        <label class="sr-only" for="assistant-input">Escreva sua pergunta para a IA</label>
+        <textarea id="assistant-input" name="message" rows="3" placeholder="Pergunte como configurar ou exportar seus diagramas..." required></textarea>
+        <div class="assistant-actions">
+            <button type="submit" class="btn-primary" data-role="send">Enviar</button>
+        </div>
+    </form>
+</div>
+<button
+    type="button"
+    class="assistant-toggle"
+    id="assistant-toggle"
+    aria-controls="assistant-panel"
+    aria-expanded="false"
+>
+    <span class="assistant-icon" aria-hidden="true">&#10024;</span>
+    <span class="assistant-label">Ajuda inteligente</span>
+</button>
+{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>
