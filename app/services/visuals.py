@@ -150,7 +150,8 @@ def generate_project_previews(project: Project) -> dict[str, dict[str, object]]:
     shutil.rmtree(project_dir, ignore_errors=True)
     project_dir.mkdir(parents=True, exist_ok=True)
 
-    data = serialize_erp_payload(compute_erp(project))
+    composition = compute_erp(project)
+    data = serialize_erp_payload(composition)
     project.composition_meta = data
     db_session = db.session if hasattr(db, "session") else None
     if db_session:
@@ -188,9 +189,12 @@ def generate_project_previews(project: Project) -> dict[str, dict[str, object]]:
         vrp_metrics = _compute_metrics(vrp_angles, vrp_values, include_front_to_back=False)
         vrp_path = project_dir / "vrp_composite.png"
         _save_planar_plot(vrp_path, vrp_angles, vrp_values, "Padrao Vertical Composto")
+        horizon_idx = int(np.argmin(np.abs(vrp_angles)))
+        horizon_value = vrp_values[horizon_idx]
         previews["elevation"] = {
             "image": _write_and_url(vrp_path, rel_root / "projects" / str(project.id) / "vrp_composite.png"),
-            "stats": _metrics_to_lines(vrp_metrics, include_front_to_back=False, gain_dbi=None),
+            "stats": _metrics_to_lines(vrp_metrics, include_front_to_back=False, gain_dbi=None)
+            + [f"E/Emax @ 0°: {horizon_value:.4f}"],
         }
 
     return previews

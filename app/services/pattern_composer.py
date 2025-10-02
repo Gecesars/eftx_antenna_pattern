@@ -96,7 +96,7 @@ def compose_horizontal_pattern(project: Project) -> tuple[np.ndarray, np.ndarray
     wave_number = 2.0 * math.pi / wavelength
 
     if count > 1 and spacing <= EPSILON:
-        spacing = wavelength / 2.0
+        spacing = wavelength
         project.h_spacing_m = spacing
 
     angles_rad = np.radians(angles)
@@ -180,7 +180,7 @@ def compose_vertical_pattern(project: Project) -> tuple[np.ndarray, np.ndarray]:
     wave_number = 2.0 * math.pi / wavelength
 
     if count > 1 and spacing <= EPSILON:
-        spacing = wavelength / 2.0
+        spacing = wavelength
         project.v_spacing_m = spacing
 
     theta_rad = np.deg2rad(angles)
