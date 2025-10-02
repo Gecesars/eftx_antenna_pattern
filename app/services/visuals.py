@@ -3,7 +3,7 @@
 import shutil
 import time
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Optional
 
 import matplotlib
 matplotlib.use("Agg")
@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from flask import current_app, url_for
 
-from ..extensions import db
 from ..models import Antenna, AntennaPattern, PatternType, Project
 from .metrics import (
     directivity_2d_cut,
@@ -24,7 +23,7 @@ from .metrics import (
     ripple_p2p_db,
     sidelobe_level_db,
 )
-from .pattern_composer import compute_erp, resample_pattern, resample_vertical, serialize_erp_payload
+from .pattern_composer import get_composition, resample_pattern, resample_vertical
 
 
 def _preview_root() -> tuple[Path, Path]:
@@ -86,14 +85,34 @@ def _save_polar_plot(path: Path, angles: np.ndarray, values: np.ndarray, title: 
     plt.close(fig)
 
 
-def _save_planar_plot(path: Path, angles: np.ndarray, values: np.ndarray, title: str) -> None:
+def _save_planar_plot(
+    path: Path,
+    angles: np.ndarray,
+    values: np.ndarray,
+    title: str,
+    highlight: Optional[tuple[float, float]] = None,
+) -> None:
+    angles = np.asarray(angles, dtype=float)
+    values = np.asarray(values, dtype=float)
     ordered_indices = np.argsort(angles)
     fig, ax = plt.subplots(figsize=(5.5, 3.5))
-    ax.plot(np.asarray(angles)[ordered_indices], np.asarray(values)[ordered_indices], linewidth=1.6, color="#0A4E8B")
+    ax.plot(angles[ordered_indices], values[ordered_indices], linewidth=1.6, color="#0A4E8B")
     ax.set_xlabel("Angulo (deg)")
     ax.set_ylabel("Amplitude (linear)")
     ax.set_title(title)
     ax.grid(True, alpha=0.3)
+    ax.axvline(0.0, color="#6b7280", linestyle="--", linewidth=0.8, alpha=0.4)
+    if highlight is not None:
+        ang, val = highlight
+        ax.scatter([ang], [val], color="#FF6A3D", s=32, zorder=5)
+        ax.annotate(
+            f"{val:.3f}",
+            xy=(ang, val),
+            xytext=(ang + 4, val + 0.03),
+            fontsize=8,
+            color="#FF6A3D",
+            arrowprops=dict(arrowstyle="->", color="#FF6A3D", linewidth=0.8),
+        )
     fig.savefig(path, dpi=220, bbox_inches="tight")
     plt.close(fig)
 
@@ -144,28 +163,19 @@ def _metrics_to_lines(metrics: dict[str, float], *, include_front_to_back: bool 
     return lines
 
 
-def generate_project_previews(project: Project) -> dict[str, dict[str, object]]:
+def generate_project_previews(project: Project, composition: Optional[dict[str, np.ndarray]] = None) -> dict[str, dict[str, object]]:
     root, rel_root = _preview_root()
     project_dir = root / "projects" / str(project.id)
     shutil.rmtree(project_dir, ignore_errors=True)
     project_dir.mkdir(parents=True, exist_ok=True)
 
-    composition = compute_erp(project)
-    data = serialize_erp_payload(composition)
-    project.composition_meta = data
-    db_session = db.session if hasattr(db, "session") else None
-    if db_session:
-        db_session.add(project)
-        try:
-            db_session.flush()
-        except Exception:
-            db_session.rollback()
+    if composition is None:
+        composition, _ = get_composition(project, refresh=True)
 
-    data = {key: np.asarray(value, dtype=float) for key, value in data.items() if isinstance(value, (list, np.ndarray))}
-    hrp_angles = data.get("angles_deg", np.array([]))
-    hrp_values = data.get("hrp_linear", np.array([]))
-    vrp_angles = data.get("vrp_angles_deg", np.array([]))
-    vrp_values = data.get("vrp_linear", np.array([]))
+    hrp_angles = composition.get("angles_deg", np.array([]))
+    hrp_values = composition.get("hrp_linear", np.array([]))
+    vrp_angles = composition.get("vrp_angles_deg", np.array([]))
+    vrp_values = composition.get("vrp_linear", np.array([]))
 
     previews: dict[str, dict[str, object]] = {}
 
@@ -188,9 +198,15 @@ def generate_project_previews(project: Project) -> dict[str, dict[str, object]]:
     if vrp_angles.size and vrp_values.size:
         vrp_metrics = _compute_metrics(vrp_angles, vrp_values, include_front_to_back=False)
         vrp_path = project_dir / "vrp_composite.png"
-        _save_planar_plot(vrp_path, vrp_angles, vrp_values, "Padrao Vertical Composto")
         horizon_idx = int(np.argmin(np.abs(vrp_angles)))
-        horizon_value = vrp_values[horizon_idx]
+        horizon_value = float(vrp_values[horizon_idx]) if vrp_values.size else float("nan")
+        _save_planar_plot(
+            vrp_path,
+            vrp_angles,
+            vrp_values,
+            "Padrao Vertical Composto",
+            highlight=(0.0, horizon_value),
+        )
         previews["elevation"] = {
             "image": _write_and_url(vrp_path, rel_root / "projects" / str(project.id) / "vrp_composite.png"),
             "stats": _metrics_to_lines(vrp_metrics, include_front_to_back=False, gain_dbi=None)

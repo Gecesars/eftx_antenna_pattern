@@ -6,6 +6,7 @@ from typing import Iterable
 
 import numpy as np
 
+from ..extensions import db
 from ..models import Antenna, PatternType, Project
 from ..utils.calculations import vertical_beta_deg
 
@@ -157,6 +158,35 @@ def serialize_erp_payload(data: dict[str, np.ndarray]) -> dict[str, object]:
         else:
             serialised[key] = value
     return serialised
+
+
+def get_composition(
+    project: Project,
+    *,
+    refresh: bool = False,
+    store: bool = True,
+) -> tuple[dict[str, np.ndarray], dict[str, object]]:
+    payload = project.composition_meta if not refresh else None
+    if payload is None:
+        payload = serialize_erp_payload(compute_erp(project))
+        if store:
+            project.composition_meta = payload
+            try:
+                db.session.add(project)
+            except Exception:
+                # Sessão pode não estar disponível (ex.: contexto read-only)
+                pass
+
+    arrays: dict[str, np.ndarray] = {}
+    for key, value in payload.items():
+        if isinstance(value, list):
+            arrays[key] = np.asarray(value, dtype=float)
+        elif isinstance(value, np.ndarray):
+            arrays[key] = value
+        else:
+            arrays[key] = value
+
+    return arrays, payload
 
 
 def compose_vertical_pattern(project: Project) -> tuple[np.ndarray, np.ndarray]:

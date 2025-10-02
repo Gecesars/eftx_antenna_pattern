@@ -17,7 +17,7 @@ from ...services.assistant import (
     snapshot_for,
 )
 from ...services.exporters import generate_project_export
-from ...services.pattern_composer import compute_erp
+from ...services.pattern_composer import get_composition
 from ...utils.calculations import total_feeder_loss, vertical_beta_deg
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -423,9 +423,10 @@ def get_project(project_id):
     project = _get_project_for_user(project_id)
     include_query = (request.args.get("include") or "").split(",")
     include_exports = "exports" in include_query
+    arrays, payload = get_composition(project, refresh="erp" in include_query)
     data = _project_to_dict(project, include_exports=include_exports)
     if "erp" in include_query:
-        data["erp"] = _erp_payload(compute_erp(project))
+        data["erp"] = _erp_payload(payload)
     return jsonify(data)
 
 
@@ -511,7 +512,8 @@ def project_patterns(project_id):
             project.splitter_loss_db,
             project.connector_loss_db,
         )
-        data = compute_erp(project)
+        arrays, payload = get_composition(project, refresh=True, store=False)
+        data = payload
     finally:
         for field, value in originals.items():
             setattr(project, field, value)

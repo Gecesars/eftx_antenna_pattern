@@ -2,6 +2,7 @@
 
 import io
 import math
+import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -34,9 +35,7 @@ from .metrics import (
     sidelobe_level_db,
 )
 from .pattern_composer import (
-    compute_erp,
-    compose_horizontal_pattern,
-    compose_vertical_pattern,
+    get_composition,
     resample_pattern,
     resample_vertical,
 )
@@ -46,6 +45,28 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 
 def resource_path(relative_path: str) -> Path:
     return (BASE_DIR / relative_path).resolve()
+
+
+def resolve_antenna_image(antenna) -> Path | None:
+    docs_dir = resource_path("docs")
+    if not docs_dir.exists():
+        return None
+
+    name_tokens = re.split(r"[^a-z0-9]+", (antenna.model_number or antenna.name or "").lower())
+    name_tokens = [token for token in name_tokens if token]
+    image_exts = {".png", ".jpg", ".jpeg", ".webp"}
+
+    best_match = None
+    for path in docs_dir.rglob("*"):
+        if path.suffix.lower() not in image_exts:
+            continue
+        stem = path.stem.lower()
+        if name_tokens and all(token in stem for token in name_tokens):
+            best_match = path
+            break
+        if best_match is None:
+            best_match = path
+    return best_match
 
 
 class ExportPaths:
@@ -180,60 +201,85 @@ def _prepare_raw_pattern(project: Project, pattern_type: PatternType) -> tuple[n
     return resample_vertical(angles, values)
 
 
-def _create_pdf_report(project: Project,
-                       paths: ExportPaths,
-                       raw_hrp_angles: np.ndarray,
-                       raw_hrp_values: np.ndarray,
-                       raw_vrp_angles: np.ndarray,
-                       raw_vrp_values: np.ndarray,
-                       array_metrics: dict) -> None:
+def _create_pdf_report(
+    project: Project,
+    paths: ExportPaths,
+    hrp_angles: np.ndarray,
+    hrp_values: np.ndarray,
+    vrp_angles: np.ndarray,
+    vrp_values: np.ndarray,
+    raw_hrp_angles: np.ndarray,
+    raw_hrp_values: np.ndarray,
+    raw_vrp_angles: np.ndarray,
+    raw_vrp_values: np.ndarray,
+    array_metrics: dict,
+    horizon_value: float,
+    antenna_image: Path | None,
+) -> None:
     modelo_path = resource_path("modelo.pdf")
     template_exists = modelo_path.exists()
     tmp_dir = tempfile.TemporaryDirectory(prefix="eftx_pdf_")
     try:
-        hrp_full_angles, hrp_full_values = angles_to_full_circle(raw_hrp_angles, raw_hrp_values)
+        hrp_full_angles, hrp_full_values = angles_to_full_circle(hrp_angles, hrp_values)
+        vrp_full_angles, vrp_full_values = vertical_to_full_circle(vrp_angles, vrp_values)
 
         hrp_img = Path(tmp_dir.name) / "hrp.png"
         vrp_img = Path(tmp_dir.name) / "vrp.png"
-        _save_polar_plot(hrp_img, raw_hrp_angles, raw_hrp_values, "Padrão Horizontal (HRP)")
-        _save_planar_plot(vrp_img, raw_vrp_angles, raw_vrp_values, "Padrão Vertical (VRP)")
+        _save_polar_plot(hrp_img, hrp_angles, hrp_values, "Padrão Horizontal Composto")
+        _save_planar_plot(vrp_img, vrp_angles, vrp_values, "Padrão Vertical Composto", highlight=(0.0, horizon_value))
 
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A4)
         width, height = A4
         margin = 18 * mm
 
-        c.setFont("Helvetica-Bold", 17)
+        c.setFont("Helvetica-Bold", 16)
         c.drawCentredString(width / 2, height - margin, f"Relatório Técnico - {project.name}")
-        c.setFont("Helvetica", 11)
+        c.setFont("Helvetica", 9)
 
         summary_left = [
             f"Antena: {project.antenna.name}",
+            f"Modelo: {project.antenna.model_number or '—'}",
             f"Projeto: {project.name}",
             f"Frequência: {project.frequency_mhz:.2f} MHz",
             f"Potência TX: {project.tx_power_w:.1f} W",
-            f"Elementos (H/V): {project.h_count} / {project.v_count}",
+            f"Notas: {project.notes or '—'}",
         ]
         summary_right = [
-            f"Espaçamento H: {project.h_spacing_m:.2f} m",
-            f"Espaçamento V: {project.v_spacing_m:.2f} m",
-            f"Tilt elétrico: {project.v_tilt_deg or 0:.2f} deg",
-            f"Perda alimentação: {project.feeder_loss_db or 0:.2f} dB",
+            f"Elementos H: {project.h_count}",
+            f"Espaçamento H: {project.h_spacing_m:.3f} m",
+            f"Beta H: {project.h_beta_deg or 0:.2f} deg",
+            f"Nível H: {project.h_level_amp or 0:.2f}",
+            f"Elementos V: {project.v_count}",
+            f"Espaçamento V: {project.v_spacing_m:.3f} m",
+            f"Tilt elétrico V: {project.v_tilt_deg or 0:.2f} deg",
+            f"Beta V: {project.v_beta_deg or 0:.2f} deg",
+            f"Nível V: {project.v_level_amp or 0:.2f}",
             f"VSWR alvo: {project.vswr_target or 0:.2f}",
+            f"Perda alimentação: {project.feeder_loss_db or 0:.2f} dB",
         ]
         y_left = height - margin - 24
         for line in summary_left:
             c.drawString(margin, y_left, line)
-            y_left -= 14
+            y_left -= 13
+
+        if antenna_image and antenna_image.exists():
+            try:
+                img_reader = ImageReader(str(antenna_image))
+                img_size = 58 * mm
+                c.drawImage(img_reader, width - margin - img_size, height - margin - img_size, width=img_size, height=img_size, preserveAspectRatio=True, mask="auto")
+            except Exception:
+                pass
+
         y_right = height - margin - 24
-        col_x = width / 2 + 10
+        col_x = width / 2 + 6 * mm
         for line in summary_right:
             c.drawString(col_x, y_right, line)
-            y_right -= 14
+            y_right -= 13
 
         chart_width = (width - margin * 3) / 2
-        chart_height = 130
-        charts_y = min(y_left, y_right) - 20
+        chart_height = 120
+        charts_y = min(y_left, y_right) - 18
         c.drawImage(ImageReader(str(hrp_img)), margin, charts_y - chart_height, width=chart_width, height=chart_height, preserveAspectRatio=True, mask="auto")
         c.drawImage(ImageReader(str(vrp_img)), margin * 2 + chart_width, charts_y - chart_height, width=chart_width, height=chart_height, preserveAspectRatio=True, mask="auto")
 
@@ -242,9 +288,9 @@ def _create_pdf_report(project: Project,
 
         element_metrics = [
             "Elementos (HRP/VRP)",
-            f"- HPBW HRP: {_format_value(hpbw_deg(raw_hrp_angles, raw_hrp_values), ' deg')}",
+            f"- HPBW HRP (elemento): {_format_value(hpbw_deg(raw_hrp_angles, raw_hrp_values), ' deg')}",
             f"- Diretividade HRP: {_format_value(dir_hrp_db, ' dB')}",
-            f"- HPBW VRP: {_format_value(hpbw_deg(raw_vrp_angles, raw_vrp_values), ' deg')}",
+            f"- HPBW VRP (elemento): {_format_value(hpbw_deg(raw_vrp_angles, raw_vrp_values), ' deg')}",
             f"- Primeiro nulo VRP: {_format_value(first_null_deg(raw_vrp_angles, raw_vrp_values), ' deg')}",
         ]
         array_lines = [
@@ -256,9 +302,10 @@ def _create_pdf_report(project: Project,
             f"- SLL: {_format_value(array_metrics['sll_db'], ' dB')}",
             f"- Diretividade 2D: {_format_value(array_metrics['directivity_db'], ' dB')}",
             f"- Ganho estimado: {_format_value(array_metrics['gain_dbi'], ' dBi')}",
+            f"- E/Emax @ 0°: {horizon_value:.4f}",
         ]
-        metrics_y = charts_y - chart_height - 20
-        c.setFont("Helvetica", 10)
+        metrics_y = charts_y - chart_height - 18
+        c.setFont("Helvetica", 9)
         for idx, line in enumerate(element_metrics):
             c.drawString(margin, metrics_y - idx * 12, line)
         for idx, line in enumerate(array_lines):
@@ -268,7 +315,7 @@ def _create_pdf_report(project: Project,
 
         available_width = width - 2 * margin
         hrp_chunks = _build_table_chunks(hrp_full_angles, hrp_full_values, available_width)
-        vrp_chunks = _build_table_chunks(raw_vrp_angles, raw_vrp_values, available_width)
+        vrp_chunks = _build_table_chunks(vrp_full_angles, vrp_full_values, available_width)
 
         for idx, chunk in enumerate(hrp_chunks):
             c.setFont("Helvetica-Bold", 14)
@@ -350,9 +397,11 @@ def write_prn(path: Path, name: str, make: str, frequency: float, freq_unit: str
 
 def generate_project_export(project: Project, export_root: Path) -> tuple[ProjectExport, ExportPaths]:
     export_root.mkdir(parents=True, exist_ok=True)
-    data = compute_erp(project)
-    hrp_angles, hrp_values = compose_horizontal_pattern(project)
-    vrp_angles, vrp_values = compose_vertical_pattern(project)
+    composition_arrays, composition_payload = get_composition(project, refresh=True)
+    hrp_angles = composition_arrays.get("angles_deg", np.array([]))
+    hrp_values = composition_arrays.get("hrp_linear", np.array([]))
+    vrp_angles = composition_arrays.get("vrp_angles_deg", np.array([]))
+    vrp_values = composition_arrays.get("vrp_linear", np.array([]))
 
     ang_full_hrp, val_full_hrp = angles_to_full_circle(hrp_angles, hrp_values)
     ang_full_vrp, val_full_vrp = vertical_to_full_circle(vrp_angles, vrp_values)
@@ -367,6 +416,8 @@ def generate_project_export(project: Project, export_root: Path) -> tuple[Projec
         "gain_dbi": float(estimate_gain_dbi(hpbw_deg(hrp_angles, hrp_values), hpbw_deg(vrp_angles, vrp_values))),
         "directivity_db": float(10 * np.log10(directivity_2d_cut(hrp_angles, hrp_values))) if np.any(hrp_values) else float("nan"),
     }
+    horizon_idx = int(np.argmin(np.abs(vrp_angles))) if vrp_angles.size else 0
+    horizon_value = float(vrp_values[horizon_idx]) if vrp_values.size else float("nan")
 
     export_paths = ExportPaths(export_root, project)
 
@@ -375,7 +426,10 @@ def generate_project_export(project: Project, export_root: Path) -> tuple[Projec
     num_elems = max(project.h_count or 1, 1) * max(project.v_count or 1, 1)
 
     tail_angles = np.linspace(0, -90, 91)
-    tail_values = np.interp(tail_angles, vrp_angles[::-1], vrp_values[::-1], left=vrp_values[-1], right=vrp_values[0])
+    if vrp_angles.size:
+        tail_values = np.interp(tail_angles, vrp_angles[::-1], vrp_values[::-1], left=vrp_values[-1], right=vrp_values[0])
+    else:
+        tail_values = np.ones_like(tail_angles)
 
     write_pat_array(
         export_paths.pat,
@@ -411,24 +465,27 @@ def generate_project_export(project: Project, export_root: Path) -> tuple[Projec
     raw_hrp_angles, raw_hrp_values = _prepare_raw_pattern(project, PatternType.HRP)
     raw_vrp_angles, raw_vrp_values = _prepare_raw_pattern(project, PatternType.VRP)
 
+    antenna_img = resolve_antenna_image(project.antenna)
+
     _create_pdf_report(
         project,
         export_paths,
+        hrp_angles,
+        hrp_values,
+        vrp_angles,
+        vrp_values,
         raw_hrp_angles,
         raw_hrp_values,
         raw_vrp_angles,
         raw_vrp_values,
         metrics,
+        horizon_value,
+        antenna_img,
     )
 
     export = ProjectExport(
         project=project,
-        erp_metadata={
-            "angles_deg": data["angles_deg"].tolist(),
-            "erp_dbw": data["erp_dbw"].tolist(),
-            "erp_w": data["erp_w"].tolist(),
-            "metrics": metrics,
-        },
+        erp_metadata={**composition_payload, "metrics": metrics},
         pat_path=str(export_paths.pat.relative_to(export_root)),
         prn_path=str(export_paths.prn.relative_to(export_root)),
         pdf_path=str(export_paths.pdf.relative_to(export_root)),

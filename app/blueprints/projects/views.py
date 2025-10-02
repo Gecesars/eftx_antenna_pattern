@@ -26,7 +26,7 @@ from ...extensions import db
 from ...forms.project import ProjectForm
 from ...models import Antenna, Project, ProjectExport
 from ...services.exporters import generate_project_export
-from ...services.pattern_composer import compute_erp, serialize_erp_payload
+from ...services.pattern_composer import get_composition
 from ...services.visuals import generate_project_previews
 from ...utils.calculations import total_feeder_loss, vertical_beta_deg
 
@@ -76,8 +76,7 @@ def dashboard():
 @login_required
 def detail(project_id):
     project = Project.query.filter_by(id=project_id, owner_id=current_user.id).first_or_404()
-    data = compute_erp(project)
-    data_payload = {k: v.tolist() if hasattr(v, "tolist") else v for k, v in data.items()}
+    composition_arrays, composition_payload = get_composition(project, refresh=True)
     erp_rows = [
         (
             int(angle % 360),
@@ -85,12 +84,12 @@ def detail(project_id):
             float(erp_dbw),
         )
         for angle, erp_w, erp_dbw in zip(
-            data.get("angles_deg", []),
-            data.get("erp_w", []),
-            data.get("erp_dbw", []),
+            composition_arrays.get("angles_deg", []),
+            composition_arrays.get("erp_w", []),
+            composition_arrays.get("erp_dbw", []),
         )
     ]
-    previews = generate_project_previews(project)
+    previews = generate_project_previews(project, composition=composition_arrays)
     latest_export = None
     latest_files = {}
     if project.revisions:
@@ -104,8 +103,8 @@ def detail(project_id):
     return render_template(
         "projects/detail.html",
         project=project,
-        data=data,
-        data_payload=data_payload,
+        data=composition_arrays,
+        data_payload=composition_payload,
         erp_rows=erp_rows,
         previews=previews,
         latest_export=latest_export,
@@ -167,7 +166,7 @@ def create():
             project.splitter_loss_db,
             project.connector_loss_db,
         )
-        project.composition_meta = serialize_erp_payload(compute_erp(project))
+        get_composition(project, refresh=True)
         db.session.add(project)
         db.session.commit()
         flash("Projeto criado!", "success")
@@ -235,7 +234,7 @@ def edit(project_id):
             project.splitter_loss_db,
             project.connector_loss_db,
         )
-        project.composition_meta = serialize_erp_payload(compute_erp(project))
+        get_composition(project, refresh=True)
         db.session.commit()
         flash("Projeto atualizado.", "success")
         return redirect(url_for("projects.detail", project_id=project.id))
