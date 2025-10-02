@@ -131,6 +131,10 @@ SQLALCHEMY_ENGINE_OPTIONS = {
 - **SLL**: maior lóbulo fora do feixe principal (≥‑6 dB).
 - **Pico & Ganho estimado**: reportar ângulo de pico e ganho/dir estimada (dBi).
 
+### 5.3 Arrays verticais/horizontais
+- A composição vertical multiplica o padrão elementar reamostrado por um fator de array complexo calculado a partir de `v_count`, espaçamento `v_spacing_m`, fase `v_beta_deg` (inclui tilt) e nível/amplitude progressivo, normalizado segundo `v_norm_mode`.
+- A composição horizontal aplica a mesma abordagem vetorial, porém distribui os painéis em arco circular com espaçamento mecânico (`h_spacing_m`) e deslocamento angular `h_step_deg`; cada elemento contribui com fase geométrica + excitação (`h_beta_deg`) e amplitude progressiva `h_level_amp`.
+
 ---
 
 ## 6) Especificação de Exportação
@@ -202,9 +206,9 @@ Inclua: Flask 3, Flask‑Login/WTF/Limiter/Mailman/JWT‑Extended, SQLAlchemy 2,
 
 ## 12) Assistente IA (Gemini)
 
-- Variáveis de ambiente: `GEMINI_API_KEY`, `GEMINI_MODEL` (padrão `models/gemini-2.5-flash`), `ASSISTANT_SYSTEM_PROMPT`, `ASSISTANT_HISTORY_LIMIT`, `ASSISTANT_GREETING`.
+- Variáveis de ambiente: `GEMINI_API_KEY`, `GEMINI_MODEL` (padrão `gemini-2.5-flash`), `ASSISTANT_SYSTEM_PROMPT`, `ASSISTANT_HISTORY_LIMIT`, `ASSISTANT_GREETING`.
 - Carregar `.env` na inicialização do Flask (`load_dotenv`) antes de criar o app.
-- Serviço `app/services/assistant.py`: usa `google.generativeai.GenerativeModel.start_chat` com `history` composto por: prompt-persona (usuario) + mensagens persistidas (`assistant_conversations`/`assistant_messages`). Persistência garante continuação da conversa por cliente.
+- Serviço `app/services/assistant.py`: carrega a chave via `load_dotenv`, instancia `GenerativeModel('gemini-2.5-flash')` e chama `start_chat(history=[system_prompt como user, saudacao inicial como model] + mensagens persistidas)`, replicando o fluxo testado em CLI. Persistência garante continuação da conversa por cliente, e os logs (`assistant.prepare`/`assistant.response`/`assistant.error`) ajudam a diagnosticar falhas.
 - Front-end: botão flutuante “Ajuda inteligente” invoca endpoints `/api/assistant/conversation` e `/api/assistant/message`, exibindo saudação inicial e histórico.
 - Prompt base: persona “AntennaExpert” com instruções técnicas/didáticas sobre uso do EFTX Antenna Pattern Designer; respostas devem citar recursos do app e orientar correções de projeto.
 ---

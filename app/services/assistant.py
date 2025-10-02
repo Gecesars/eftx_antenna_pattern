@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Sequence
+from typing import Iterable, Optional, Sequence
 
 import google.generativeai as genai
 from flask import current_app
@@ -56,13 +56,15 @@ def load_history(conversation: AssistantConversation, limit: int) -> list[Assist
     return messages
 
 
-def _build_chat_history(messages: Iterable[AssistantMessage], system_prompt: str) -> list[dict]:
-    history = [
+def _build_chat_history(messages: Iterable[AssistantMessage], system_prompt: str, greeting: str | None) -> list[dict]:
+    history: list[dict[str, list[str]]] = [
         {
             "role": "user",
             "parts": [system_prompt],
         }
     ]
+    if greeting and not messages:
+        history.append({"role": "model", "parts": [greeting]})
     for message in messages:
         role = "model" if message.role == ROLE_ASSISTANT else "user"
         history.append({"role": role, "parts": [message.content]})
@@ -110,20 +112,33 @@ def send_assistant_message(user: User, content: str) -> ConversationSnapshot:
     previous_messages = load_history(conversation, history_limit)
 
     api_key = current_app.config.get("GEMINI_API_KEY")
-    model_name = current_app.config.get("GEMINI_MODEL", "models/gemini-2.5-flash")
-    system_prompt = current_app.config.get("ASSISTANT_SYSTEM_PROMPT")
+    model_name = current_app.config.get("GEMINI_MODEL", "gemini-2.5-flash")
+    system_prompt: str = current_app.config.get("ASSISTANT_SYSTEM_PROMPT") or ""
+    greeting: Optional[str] = (current_app.config.get("ASSISTANT_GREETING") or "").strip() or None
 
     if not api_key:
         raise AssistantServiceError("Gemini API key nao configurada.")
 
+    logger = current_app.logger
+    logger.debug(
+        "assistant.prepare",
+        extra={
+            "conversation_id": str(conversation.id),
+            "history_len": len(previous_messages),
+            "model": model_name,
+        },
+    )
+
     genai.configure(api_key=api_key)
-    history_payload = _build_chat_history(previous_messages, system_prompt)
+    history_payload = _build_chat_history(previous_messages, system_prompt, greeting)
+    logger.debug("assistant.history", extra={"history": history_payload})
     model = genai.GenerativeModel(model_name=model_name)
     chat = model.start_chat(history=history_payload)
 
     try:
         response = chat.send_message(content.strip())
     except Exception as exc:  # pragma: no cover - defensive network wrapper
+        logger.exception("assistant.error", stack_info=True)
         raise AssistantServiceError("Falha ao consultar o modelo Gemini.") from exc
 
     answer_text = _extract_text(response)
@@ -139,6 +154,14 @@ def send_assistant_message(user: User, content: str) -> ConversationSnapshot:
         token_count=_usage_token_count(response),
     )
     db.session.add(assistant_message)
+
+    logger.debug(
+        "assistant.response",
+        extra={
+            "conversation_id": str(conversation.id),
+            "response": answer_text.strip(),
+        },
+    )
 
     messages = load_history(conversation, history_limit)
     return ConversationSnapshot(conversation=conversation, messages=messages)

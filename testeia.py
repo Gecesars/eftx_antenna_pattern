@@ -41,7 +41,7 @@ Comece a conversa se apresentando de forma breve e profissional.
 
 # --- 3. Inicialização do Modelo e do Chat ---
 # Usando o modelo mais recente e rápido, 'gemini-1.5-flash-latest'.
-model = genai.GenerativeModel('gemini-2.5-pro') # <-- LINHA ALTERADA
+model = genai.GenerativeModel('gemini-2.5-flash') # <-- LINHA ALTERADA
 
 chat = model.start_chat(history=[
     {

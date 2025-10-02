@@ -26,7 +26,7 @@ from ...extensions import db
 from ...forms.project import ProjectForm
 from ...models import Antenna, Project, ProjectExport
 from ...services.exporters import generate_project_export
-from ...services.pattern_composer import compute_erp
+from ...services.pattern_composer import compute_erp, serialize_erp_payload
 from ...services.visuals import generate_project_previews
 from ...utils.calculations import total_feeder_loss, vertical_beta_deg
 
@@ -135,7 +135,6 @@ def create():
 
         project = Project(
             owner=current_user,
-            antenna=antenna,
             name=form.name.data,
             frequency_mhz=form.frequency_mhz.data,
             tx_power_w=form.tx_power_w.data,
@@ -159,6 +158,7 @@ def create():
             h_norm_mode=form.h_norm_mode.data,
             notes=form.notes.data,
         )
+        project.antenna = antenna
         _apply_vertical_tilt(project)
         project.feeder_loss_db = total_feeder_loss(
             project.cable_length_m,
@@ -167,6 +167,7 @@ def create():
             project.splitter_loss_db,
             project.connector_loss_db,
         )
+        project.composition_meta = serialize_erp_payload(compute_erp(project))
         db.session.add(project)
         db.session.commit()
         flash("Projeto criado!", "success")
@@ -185,7 +186,8 @@ def edit(project_id):
     project = Project.query.filter_by(id=project_id, owner_id=current_user.id).first_or_404()
     form = ProjectForm(obj=project)
     form.antenna_id.choices = [(str(a.id), a.name) for a in Antenna.query.order_by(Antenna.name).all()]
-    form.antenna_id.data = str(project.antenna_id)
+    primary_link = project.primary_antenna_link
+    form.antenna_id.data = str(primary_link.antenna_id) if primary_link else (form.antenna_id.data or None)
 
     if form.validate_on_submit():
         try:
@@ -224,6 +226,7 @@ def edit(project_id):
         project.h_level_amp = form.h_level_amp.data or 1.0
         project.h_norm_mode = form.h_norm_mode.data
         project.notes = form.notes.data
+        project.antenna = antenna
         _apply_vertical_tilt(project)
         project.feeder_loss_db = total_feeder_loss(
             project.cable_length_m,
@@ -232,6 +235,7 @@ def edit(project_id):
             project.splitter_loss_db,
             project.connector_loss_db,
         )
+        project.composition_meta = serialize_erp_payload(compute_erp(project))
         db.session.commit()
         flash("Projeto atualizado.", "success")
         return redirect(url_for("projects.detail", project_id=project.id))

@@ -8,7 +8,7 @@ from flask import Blueprint, abort, current_app, jsonify, request
 from flask_jwt_extended import current_user as jwt_current_user, jwt_required, verify_jwt_in_request
 from flask_login import current_user as login_current_user
 
-from ...extensions import db, limiter
+from ...extensions import db, limiter, csrf
 from ...models import Antenna, Project, ProjectExport
 from ...services.assistant import (
     AssistantServiceError,
@@ -532,11 +532,26 @@ def get_assistant_conversation():
 @api_bp.route("/assistant/message", methods=["POST"])
 @jwt_required(optional=True)
 @limiter.limit(api_limit)
+@csrf.exempt
 def post_assistant_message():
     payload = request.get_json(silent=True) or {}
     message = (payload.get("message") or "").strip()
     if not message:
+        current_app.logger.warning(
+            "assistant.malformed_payload",
+            extra={
+                "payload": payload,
+                "content_type": request.content_type,
+            },
+        )
         abort(400, description="Campo message e obrigatorio.")
+    current_app.logger.debug(
+        "assistant.request",
+        extra={
+            "payload": payload,
+            "user_id": str(getattr(jwt_current_user, 'id', None) or getattr(login_current_user, 'id', None)),
+        },
+    )
     user = _resolve_actor()
     try:
         snapshot = send_assistant_message(user, message)

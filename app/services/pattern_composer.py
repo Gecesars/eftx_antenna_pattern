@@ -80,22 +80,79 @@ def compose_horizontal_pattern(project: Project) -> tuple[np.ndarray, np.ndarray
     if not hrp:
         angles = np.arange(-180, 181)
         return angles, np.ones_like(angles, dtype=float)
-    base_angles, base_amp = np.array(hrp.angles_deg, dtype=float), np.array(hrp.amplitudes_linear, dtype=float)
-    angles, amp = resample_pattern(base_angles, base_amp, -180, 180, 1)
 
-    wave_num = 2 * math.pi / wavelength_m(project.frequency_mhz)
-    af = array_factor(
-        count=project.h_count,
-        spacing_m=project.h_spacing_m,
-        beta_deg=project.h_beta_deg,
-        level_amp=project.h_level_amp if project.h_level_amp else 1.0,
-        wave_number=wave_num,
-        angles_rad=np.radians(angles + project.h_step_deg),
-        projection="horizontal",
-    )
-    af = normalise(af, project.h_norm_mode)
-    composed = amp * af
-    return angles, composed
+    base_angles = np.array(hrp.angles_deg, dtype=float)
+    base_vals = np.array(hrp.amplitudes_linear, dtype=float)
+    angles, element_pattern = resample_pattern(base_angles, base_vals, -180, 180, 1)
+
+    count = max(int(project.h_count or 1), 1)
+    beta_deg = project.h_beta_deg or 0.0
+    spacing = max(project.h_spacing_m or 0.0, 0.0)
+    level_amp = project.h_level_amp if project.h_level_amp not in (None, 0) else 1.0
+    step_deg = project.h_step_deg or 0.0
+
+    frequency_hz = max(project.frequency_mhz or 0.0, EPSILON) * 1e6
+    wavelength = C_LIGHT / frequency_hz
+    wave_number = 2.0 * math.pi / wavelength
+
+    angles_rad = np.radians(angles)
+    composite = np.zeros_like(angles_rad, dtype=complex)
+
+    if count == 1 or spacing <= EPSILON:
+        composite = element_pattern.astype(complex)
+    else:
+        beta_rad = math.radians(beta_deg)
+        if abs(step_deg) < 1e-6:
+            offsets = (np.arange(count, dtype=float) - (count - 1) / 2.0) * spacing
+            for idx, phi_rad in enumerate(angles_rad):
+                total = 0.0 + 0.0j
+                for m, offset in enumerate(offsets):
+                    sample = element_pattern[idx]
+                    phase_geom = wave_number * offset * math.sin(phi_rad)
+                    phase_exc = beta_rad * m
+                    total += level_amp * sample * np.exp(1j * (phase_geom + phase_exc))
+                composite[idx] = total
+        else:
+            alpha_deg = np.arange(count, dtype=float) * step_deg
+            alpha_rad = np.deg2rad(alpha_deg)
+            radius = spacing / (2.0 * math.sin(math.pi / count)) if count > 1 else 0.0
+            for idx, phi_deg in enumerate(angles):
+                phi_rad = math.radians(phi_deg)
+                ux = math.cos(phi_rad)
+                uy = math.sin(phi_rad)
+                total = 0.0 + 0.0j
+                for m in range(count):
+                    x_m = radius * math.cos(alpha_rad[m])
+                    y_m = radius * math.sin(alpha_rad[m])
+                    delta_r = x_m * ux + y_m * uy
+                    phase_geom = wave_number * delta_r
+                    phase_exc = beta_rad * m
+                    rel_angle = (phi_deg - alpha_deg[m]) % 360.0
+                    if rel_angle > 180.0:
+                        rel_angle -= 360.0
+                    sample = np.interp(
+                        rel_angle,
+                        angles,
+                        element_pattern,
+                        left=element_pattern[0],
+                        right=element_pattern[-1],
+                    )
+                    total += level_amp * sample * np.exp(1j * (phase_geom + phase_exc))
+                composite[idx] = total
+
+    composite_mag = np.abs(composite)
+    composite_mag = normalise(composite_mag, project.h_norm_mode or "max")
+    return angles, composite_mag
+
+
+def serialize_erp_payload(data: dict[str, np.ndarray]) -> dict[str, object]:
+    serialised: dict[str, object] = {}
+    for key, value in data.items():
+        if isinstance(value, np.ndarray):
+            serialised[key] = value.tolist()
+        else:
+            serialised[key] = value
+    return serialised
 
 
 def compose_vertical_pattern(project: Project) -> tuple[np.ndarray, np.ndarray]:
@@ -105,22 +162,27 @@ def compose_vertical_pattern(project: Project) -> tuple[np.ndarray, np.ndarray]:
         angles = np.round(np.arange(-90.0, 90.0 + 0.0001, 0.1), 1)
         return angles, np.ones_like(angles, dtype=float)
     base_angles, base_amp = np.array(vrp.angles_deg, dtype=float), np.array(vrp.amplitudes_linear, dtype=float)
-    angles, amp = resample_vertical(base_angles, base_amp)
-    wave_num = 2 * math.pi / wavelength_m(project.frequency_mhz)
-    beta_deg = vertical_beta_deg(project.frequency_mhz, project.v_spacing_m or 0.0, project.v_tilt_deg or 0.0)
+    angles, element_pattern = resample_vertical(base_angles, base_amp)
+
+    count = max(int(project.v_count or 1), 1)
+    spacing = project.v_spacing_m or 0.0
+    beta_deg = vertical_beta_deg(project.frequency_mhz, spacing, project.v_tilt_deg or 0.0)
     project.v_beta_deg = beta_deg
-    af = array_factor(
-        count=project.v_count,
-        spacing_m=project.v_spacing_m or 0.0,
-        beta_deg=beta_deg,
-        level_amp=project.v_level_amp if project.v_level_amp else 1.0,
-        wave_number=wave_num,
-        angles_rad=np.radians(angles),
-        projection="vertical",
-    )
-    af = normalise(af, project.v_norm_mode)
-    composed = amp * af
-    return angles, composed
+    beta_rad = math.radians(beta_deg)
+    level_amp = project.v_level_amp if project.v_level_amp not in (None, 0) else 1.0
+
+    frequency_hz = max(project.frequency_mhz or 0.0, EPSILON) * 1e6
+    wavelength = C_LIGHT / frequency_hz
+    wave_number = 2.0 * math.pi / wavelength
+
+    theta_rad = np.deg2rad(angles)
+    psi = wave_number * spacing * np.sin(theta_rad) + beta_rad
+    indices = np.arange(count, dtype=float).reshape((-1, 1))
+    weights = (level_amp ** indices) if level_amp not in (None, 0, 1) else np.ones_like(indices)
+    af = np.sum(weights * np.exp(1j * indices * psi), axis=0)
+    composite = element_pattern * np.abs(af)
+    composite = normalise(composite, project.v_norm_mode or "max")
+    return angles, composite
 
 
 def compute_erp(project: Project) -> dict[str, np.ndarray]:
