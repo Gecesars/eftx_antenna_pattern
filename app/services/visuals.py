@@ -64,11 +64,13 @@ def _compute_metrics(angles: np.ndarray, values: np.ndarray, *, include_front_to
 
 
 def _save_polar_plot(path: Path, angles: np.ndarray, values: np.ndarray, title: str) -> None:
-    ordered_indices = np.argsort(angles)
-    angles_sorted = np.asarray(angles)[ordered_indices]
-    values_sorted = np.asarray(values)[ordered_indices]
-    theta = (angles_sorted + 360.0) % 360.0
-    theta_rad = np.deg2rad(theta)
+    angles = np.asarray(angles, dtype=float)
+    values = np.asarray(values, dtype=float)
+    theta_deg = (angles + 360.0) % 360.0
+    order = np.argsort(theta_deg)
+    theta_sorted = theta_deg[order]
+    values_sorted = values[order]
+    theta_rad = np.deg2rad(theta_sorted)
     theta_wrapped = np.append(theta_rad, theta_rad[0] + 2 * np.pi)
     values_wrapped = np.append(values_sorted, values_sorted[0])
 

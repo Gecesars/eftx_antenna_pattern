@@ -3,12 +3,16 @@ from __future__ import annotations
 import uuid
 
 from flask import Flask
+from dotenv import load_dotenv
 
 from .config import config_by_name
 from .extensions import csrf, db, limiter, login_manager, mail, migrate, jwt
 from .utils.templating import register_template_globals
 from .blueprints import register_blueprints
 from .cli import register_cli
+
+load_dotenv()
+
 
 def create_app(config_name: str | None = None) -> Flask:
     app = Flask(__name__, instance_relative_config=False)

@@ -30,6 +30,16 @@ def get_or_create_conversation(user: User) -> AssistantConversation:
         conversation = AssistantConversation(user=user)
         db.session.add(conversation)
         db.session.flush()
+        greeting = (current_app.config.get("ASSISTANT_GREETING") or "").strip()
+        if greeting:
+            db.session.add(
+                AssistantMessage(
+                    conversation=conversation,
+                    role=ROLE_ASSISTANT,
+                    content=greeting,
+                )
+            )
+            db.session.flush()
     return conversation
 
 
@@ -46,12 +56,17 @@ def load_history(conversation: AssistantConversation, limit: int) -> list[Assist
     return messages
 
 
-def _format_for_model(messages: Iterable[AssistantMessage]) -> list[dict]:
-    formatted = []
+def _build_chat_history(messages: Iterable[AssistantMessage], system_prompt: str) -> list[dict]:
+    history = [
+        {
+            "role": "user",
+            "parts": [system_prompt],
+        }
+    ]
     for message in messages:
-        role = "user" if message.role == ROLE_USER else "model"
-        formatted.append({"role": role, "parts": [{"text": message.content}]})
-    return formatted
+        role = "model" if message.role == ROLE_ASSISTANT else "user"
+        history.append({"role": role, "parts": [message.content]})
+    return history
 
 
 def _extract_text(response) -> str:
@@ -92,26 +107,22 @@ def send_assistant_message(user: User, content: str) -> ConversationSnapshot:
     conversation = get_or_create_conversation(user)
 
     history_limit = max(1, int(current_app.config.get("ASSISTANT_HISTORY_LIMIT", 12)))
-    previous_messages = load_history(conversation, history_limit - 1)
-
-    user_message = AssistantMessage(conversation=conversation, role=ROLE_USER, content=content.strip())
-    db.session.add(user_message)
-    db.session.flush()
-
-    payload_messages = [*previous_messages, user_message]
+    previous_messages = load_history(conversation, history_limit)
 
     api_key = current_app.config.get("GEMINI_API_KEY")
-    model_name = current_app.config.get("GEMINI_MODEL", "models/gemini-2.0-flash")
+    model_name = current_app.config.get("GEMINI_MODEL", "models/gemini-2.5-flash")
     system_prompt = current_app.config.get("ASSISTANT_SYSTEM_PROMPT")
 
     if not api_key:
         raise AssistantServiceError("Gemini API key nao configurada.")
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name=model_name, system_instruction=system_prompt)
+    history_payload = _build_chat_history(previous_messages, system_prompt)
+    model = genai.GenerativeModel(model_name=model_name)
+    chat = model.start_chat(history=history_payload)
 
     try:
-        response = model.generate_content(_format_for_model(payload_messages))
+        response = chat.send_message(content.strip())
     except Exception as exc:  # pragma: no cover - defensive network wrapper
         raise AssistantServiceError("Falha ao consultar o modelo Gemini.") from exc
 
@@ -119,6 +130,8 @@ def send_assistant_message(user: User, content: str) -> ConversationSnapshot:
     if not answer_text:
         raise AssistantServiceError("Resposta vazia recebida do modelo.")
 
+    user_message = AssistantMessage(conversation=conversation, role=ROLE_USER, content=content.strip())
+    db.session.add(user_message)
     assistant_message = AssistantMessage(
         conversation=conversation,
         role=ROLE_ASSISTANT,
@@ -136,4 +149,3 @@ def snapshot_for(user: User) -> ConversationSnapshot:
     history_limit = max(1, int(current_app.config.get("ASSISTANT_HISTORY_LIMIT", 12)))
     messages = load_history(conversation, history_limit)
     return ConversationSnapshot(conversation=conversation, messages=messages)
-

@@ -18,9 +18,8 @@ def resample_pattern(angles: Iterable[float], amplitudes: Iterable[float], start
     src_amp = np.asarray(list(amplitudes), dtype=float)
     dest_angles = np.arange(start, stop + step, step, dtype=float)
     sort_idx = np.argsort(src_angles)
-    src_angles = np.mod(src_angles[sort_idx], 360)
+    src_angles = src_angles[sort_idx]
     src_amp = src_amp[sort_idx]
-    # extend for circular interpolation
     src_angles_ext = np.concatenate((src_angles - 360, src_angles, src_angles + 360))
     src_amp_ext = np.concatenate((src_amp, src_amp, src_amp))
     dest_amp = np.interp(dest_angles, src_angles_ext, src_amp_ext)

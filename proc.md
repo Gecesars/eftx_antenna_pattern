@@ -118,7 +118,7 @@ SQLALCHEMY_ENGINE_OPTIONS = {
 ## 5) Especificação Numérica (cálculo/intervalos)
 
 ### 5.1 Reamostragem e Domínios
-- **HRP**: 0…359° (passo 1°). Interpolação **circular**.
+- **HRP**: manter amostras originais em −180…+180° (passo 1°). Reamostragem circular sem modular para 0…360°; ajustes para visualização/export usam `angle % 360` apenas na saída.
 - **VRP**: −90…+90° (passo 1° no composto; 0,1° quando necessário nos elementos).  
   Tail opcional: 0…−90° para compatibilidade com alguns consumidores.
 - Normalização: `none|max|rms`. Aplicar `val = max(val, 1e-12)` antes de converter para dB.
@@ -198,6 +198,15 @@ SQLALCHEMY_ENGINE_OPTIONS = {
 Arquivo `requirements.txt` deve conter versões compatíveis (fixe/pinne quando estabilizar).  
 Inclua: Flask 3, Flask‑Login/WTF/Limiter/Mailman/JWT‑Extended, SQLAlchemy 2, Alembic/Flask‑Migrate, psycopg2‑binary, Argon2/bcrypt, itsdangerous, python‑dotenv, NumPy, Matplotlib, ReportLab, pypdf, Pillow, email‑validator, pytest/pytest‑cov, black/isort/flake8/mypy/bandit.
 
+---
+
+## 12) Assistente IA (Gemini)
+
+- Variáveis de ambiente: `GEMINI_API_KEY`, `GEMINI_MODEL` (padrão `models/gemini-2.5-flash`), `ASSISTANT_SYSTEM_PROMPT`, `ASSISTANT_HISTORY_LIMIT`, `ASSISTANT_GREETING`.
+- Carregar `.env` na inicialização do Flask (`load_dotenv`) antes de criar o app.
+- Serviço `app/services/assistant.py`: usa `google.generativeai.GenerativeModel.start_chat` com `history` composto por: prompt-persona (usuario) + mensagens persistidas (`assistant_conversations`/`assistant_messages`). Persistência garante continuação da conversa por cliente.
+- Front-end: botão flutuante “Ajuda inteligente” invoca endpoints `/api/assistant/conversation` e `/api/assistant/message`, exibindo saudação inicial e histórico.
+- Prompt base: persona “AntennaExpert” com instruções técnicas/didáticas sobre uso do EFTX Antenna Pattern Designer; respostas devem citar recursos do app e orientar correções de projeto.
 ---
 
 ## 12) Backlog por Marcos (M0→M8)

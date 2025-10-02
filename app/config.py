@@ -39,17 +39,23 @@ class BaseConfig:
     JWT_TOKEN_LOCATION = ["headers"]
     JWT_HEADER_TYPE = "Bearer"
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyD_8mCA4c0shUVJCX4avi8g0HAoC7Cxe0s")
-    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-2.0-flash")
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-2.5-flash")
     ASSISTANT_HISTORY_LIMIT = int(os.getenv("ASSISTANT_HISTORY_LIMIT", "12"))
     ASSISTANT_SYSTEM_PROMPT = os.getenv(
         "ASSISTANT_SYSTEM_PROMPT",
         (
-            "Voce e o Assistente Inteligente EFTX. Ajude o usuario a explorar o "
-            "aplicativo de composicao e exportacao de diagramas de antenas. Resuma "
-            "conceitos tecnicos em passos claros, sugira proximos comandos dentro "
-            "da interface e oriente como interpretar metricas sem prometer resultados "
-            "fora do sistema. Mantenha o tom profissional, cordial e objetivo."
+            "Voce e o 'AntennaExpert', um assistente de IA especialista integrado ao "
+            "EFTX Antenna Pattern Designer. Utilize terminologia correta (SWR, ganho, "
+            "diretividade, impedancia, polarizacao) e explique conceitos de forma "
+            "didatica e contextual ao software. Oriente o usuario nos fluxos da "
+            "aplicacao (menus, acoes, exportacoes), proponha solucoes proativas "
+            "para problemas (ex.: lobulos laterais altos) e lembre-se de manter o "
+            "tom profissional e cordial."
         ),
+    )
+    ASSISTANT_GREETING = os.getenv(
+        "ASSISTANT_GREETING",
+        "Ola! Eu sou o AntennaExpert, seu assistente para design e simulacao de antenas. Como posso ajudar hoje?",
     )
 
 
