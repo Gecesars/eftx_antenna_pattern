@@ -134,6 +134,7 @@ SQLALCHEMY_ENGINE_OPTIONS = {
 ### 5.3 Arrays verticais/horizontais
 - A composição vertical multiplica o padrão elementar reamostrado por um fator de array complexo calculado a partir de `v_count`, espaçamento `v_spacing_m`, fase `v_beta_deg` (inclui tilt) e nível/amplitude progressivo, normalizado segundo `v_norm_mode`.
 - A composição horizontal aplica a mesma abordagem vetorial, porém distribui os painéis em arco circular com espaçamento mecânico (`h_spacing_m`) e deslocamento angular `h_step_deg`; cada elemento contribui com fase geométrica + excitação (`h_beta_deg`) e amplitude progressiva `h_level_amp`.
+- O resultado composto (dados ERP) é serializado para `project.composition_meta`, garantindo que páginas e exportações reflitam qualquer alteração de parâmetros após salvar.
 
 ---
 
@@ -209,6 +210,10 @@ Inclua: Flask 3, Flask‑Login/WTF/Limiter/Mailman/JWT‑Extended, SQLAlchemy 2,
 - Variáveis de ambiente: `GEMINI_API_KEY`, `GEMINI_MODEL` (padrão `gemini-2.5-flash`), `ASSISTANT_SYSTEM_PROMPT`, `ASSISTANT_HISTORY_LIMIT`, `ASSISTANT_GREETING`.
 - Carregar `.env` na inicialização do Flask (`load_dotenv`) antes de criar o app.
 - Serviço `app/services/assistant.py`: carrega a chave via `load_dotenv`, instancia `GenerativeModel('gemini-2.5-flash')` e chama `start_chat(history=[system_prompt como user, saudacao inicial como model] + mensagens persistidas)`, replicando o fluxo testado em CLI. Persistência garante continuação da conversa por cliente, e os logs (`assistant.prepare`/`assistant.response`/`assistant.error`) ajudam a diagnosticar falhas.
+- O agente pode disparar ações operacionais envolvendo `<action type="create_project">{...}</action>` no texto de resposta; o backend interpreta essa marcação, cria o projeto com os parâmetros informados (estimando `v_count`/`h_count` quando houver `target_gain_dbi`) e devolve um resumo com link direto para o projeto recém-criado.
+- Se nenhum espaçamento for informado e houver mais de um elemento, o sistema usa automaticamente espaçamento `λ/2` tanto vertical quanto horizontal, garantindo que o padrão composto reflita a interação entre os elementos.
+- O assistente consulta o índice vetorial construído a partir dos arquivos em `docs/` (`flask rebuild-knowledge`) e inclui o contexto relevante antes de chamar o modelo.
+- O comando `flask rebuild-knowledge --source docs` recompila o índice vetorial; se o modelo de embeddings exigir autenticação, defina `HUGGINGFACEHUB_API_TOKEN` (ou `HUGGINGFACE_TOKEN`).
 - Front-end: botão flutuante “Ajuda inteligente” invoca endpoints `/api/assistant/conversation` e `/api/assistant/message`, exibindo saudação inicial e histórico.
 - Prompt base: persona “AntennaExpert” com instruções técnicas/didáticas sobre uso do EFTX Antenna Pattern Designer; respostas devem citar recursos do app e orientar correções de projeto.
 ---

@@ -6,6 +6,7 @@ from flask import Flask
 from .extensions import db
 from .models import User
 from .utils.security import hash_password
+from .services.knowledge_base import build_index
 
 
 def register_cli(app: Flask) -> None:
@@ -43,3 +44,9 @@ def register_cli(app: Flask) -> None:
         user.is_active = True
         db.session.commit()
         click.echo(f"User {user.email} promoted to admin")
+
+    @app.cli.command("rebuild-knowledge")
+    @click.option("--source", default="docs", help="Diretorio com os documentos (padrao: docs)")
+    def rebuild_knowledge(source: str) -> None:
+        count = build_index(source)
+        click.echo(f"Index construído com {count} fragmentos")

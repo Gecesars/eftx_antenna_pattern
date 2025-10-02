@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from flask import current_app, url_for
 
+from ..extensions import db
 from ..models import Antenna, AntennaPattern, PatternType, Project
 from .metrics import (
     directivity_2d_cut,
@@ -23,7 +24,7 @@ from .metrics import (
     ripple_p2p_db,
     sidelobe_level_db,
 )
-from .pattern_composer import resample_pattern, resample_vertical
+from .pattern_composer import compute_erp, resample_pattern, resample_vertical, serialize_erp_payload
 
 
 def _preview_root() -> tuple[Path, Path]:
@@ -149,44 +150,48 @@ def generate_project_previews(project: Project) -> dict[str, dict[str, object]]:
     shutil.rmtree(project_dir, ignore_errors=True)
     project_dir.mkdir(parents=True, exist_ok=True)
 
+    data = serialize_erp_payload(compute_erp(project))
+    project.composition_meta = data
+    db_session = db.session if hasattr(db, "session") else None
+    if db_session:
+        db_session.add(project)
+        try:
+            db_session.flush()
+        except Exception:
+            db_session.rollback()
+
+    data = {key: np.asarray(value, dtype=float) for key, value in data.items() if isinstance(value, (list, np.ndarray))}
+    hrp_angles = data.get("angles_deg", np.array([]))
+    hrp_values = data.get("hrp_linear", np.array([]))
+    vrp_angles = data.get("vrp_angles_deg", np.array([]))
+    vrp_values = data.get("vrp_linear", np.array([]))
+
     previews: dict[str, dict[str, object]] = {}
-    hrp_angles = hrp_values = hrp_metrics = None
-    vrp_angles = vrp_values = vrp_metrics = None
 
-    hrp_pattern = project.antenna.pattern_for(PatternType.HRP)
-    if hrp_pattern:
-        hrp_angles, hrp_values = _prepare_pattern(hrp_pattern)
+    if hrp_angles.size and hrp_values.size:
         hrp_metrics = _compute_metrics(hrp_angles, hrp_values, include_front_to_back=True)
-        hrp_path = project_dir / "hrp_raw.png"
-        _save_polar_plot(hrp_path, hrp_angles, hrp_values, "Padrao Horizontal (HRP)")
+        hrp_path = project_dir / "hrp_composite.png"
+        _save_polar_plot(hrp_path, hrp_angles, hrp_values, "Padrao Horizontal Composto")
+        gain_dbi = None
+        if vrp_angles.size and vrp_values.size:
+            vrp_metrics = _compute_metrics(vrp_angles, vrp_values, include_front_to_back=False)
+            gain_dbi = estimate_gain_dbi(
+                hrp_metrics.get("hpbw", float("nan")),
+                vrp_metrics.get("hpbw", float("nan")),
+            )
         previews["azimuth"] = {
-            "image": _write_and_url(hrp_path, rel_root / "projects" / str(project.id) / "hrp_raw.png"),
-            "stats": [],
+            "image": _write_and_url(hrp_path, rel_root / "projects" / str(project.id) / "hrp_composite.png"),
+            "stats": _metrics_to_lines(hrp_metrics, include_front_to_back=True, gain_dbi=gain_dbi),
         }
 
-    vrp_pattern = project.antenna.pattern_for(PatternType.VRP)
-    if vrp_pattern:
-        vrp_angles, vrp_values = _prepare_pattern(vrp_pattern)
+    if vrp_angles.size and vrp_values.size:
         vrp_metrics = _compute_metrics(vrp_angles, vrp_values, include_front_to_back=False)
-        vrp_path = project_dir / "vrp_raw.png"
-        _save_planar_plot(vrp_path, vrp_angles, vrp_values, "Padrao Vertical (VRP)")
+        vrp_path = project_dir / "vrp_composite.png"
+        _save_planar_plot(vrp_path, vrp_angles, vrp_values, "Padrao Vertical Composto")
         previews["elevation"] = {
-            "image": _write_and_url(vrp_path, rel_root / "projects" / str(project.id) / "vrp_raw.png"),
-            "stats": [],
+            "image": _write_and_url(vrp_path, rel_root / "projects" / str(project.id) / "vrp_composite.png"),
+            "stats": _metrics_to_lines(vrp_metrics, include_front_to_back=False, gain_dbi=None),
         }
-
-    gain_dbi = None
-    if hrp_metrics and vrp_metrics:
-        gain_dbi = estimate_gain_dbi(
-            hrp_metrics.get("hpbw", float("nan")),
-            vrp_metrics.get("hpbw", float("nan")),
-        )
-
-    if hrp_metrics and "azimuth" in previews:
-        previews["azimuth"]["stats"] = _metrics_to_lines(hrp_metrics, include_front_to_back=True, gain_dbi=gain_dbi)
-
-    if vrp_metrics and "elevation" in previews:
-        previews["elevation"]["stats"] = _metrics_to_lines(vrp_metrics, include_front_to_back=False, gain_dbi=None)
 
     return previews
 

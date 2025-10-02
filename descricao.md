@@ -12,6 +12,7 @@ A aplicação é uma solução web completa para composição, análise e export
 - Gestão de antenas, importação de padrões (HRP/VRP) via arquivos CSV/TXT, persistidos ponto a ponto em banco PostgreSQL;
 - Criação de projetos que reaproveitam padrões elementares para construir arrays verticais e horizontais, calculando métricas (HPBW, diretividade, F/B, ripple, SLL, ganho estimado) e exportando relatórios (`.PAT`, `.PRN`, PDF);
 - Auxílio inteligente via integração com o modelo Gemini (persona “AntennaExpert”), persistindo histórico de conversas por usuário.
+- Base de conhecimento vetorial alimentada pelos datasheets em `docs/`, usada pelo assistente para fornecer respostas contextuais.
 
 A stack principal inclui **Flask 3**, **SQLAlchemy/Alembic**, **Jinja2**, **NumPy**, **Matplotlib**, **ReportLab**, **pypdf** e **Google Generative AI**.
 
@@ -78,11 +79,13 @@ A stack principal inclui **Flask 3**, **SQLAlchemy/Alembic**, **Jinja2**, **NumP
   - `resample_pattern` / `resample_vertical`: reamostragem HRP (−180…180°) e VRP (−90…90°) preservando características do CSV.
   - `compose_horizontal_pattern`: calcula padrão composto de painéis horizontais somando contribuições complexas (posição em arco circular, espaçamento mecânico, fase de excitação, ganho elementar).
   - `compose_vertical_pattern`: combina elementos verticais (pilha de antenas) usando tilt, espaçamento e contagem.
-  - `compute_erp`: integra padrões compostos, aplica perdas e potência para obter ERP (linear/dBw), métricas auxiliares, valores exportáveis (PAT/PRN).
+  - `compute_erp`: integra padrões compostos, aplica perdas e potência para obter ERP (linear/dBw), métricas auxiliares, valores exportáveis (PAT/PRN). O helper `serialize_erp_payload` grava o resultado em `project.composition_meta`, mantendo dashboards e exports sincronizados com ajustes posteriores.
   - `export_pat` / `export_prn`: grava arquivos nos formatos específicos.
-- `visuals.py`: geração de previews (gráficos Matplotlib) e métricas para exibição no painel; salva imagens em `static/generated/previews/...`.
+- `visuals.py`: geração de previews (gráficos Matplotlib) e métricas para exibição no painel; salva imagens em `static/generated/previews/...` e harmoniza `project.composition_meta` com os cálculos mais recentes.
 - `exporters.py`: coordena exportações (bundle PAT/PRN/PDF) e grava `ProjectExport`.
-- `assistant.py`: integra com Google Generative AI (Gemini). Carga do `.env`, configuração do modelo `gemini-2.5-flash`, histórico `[system_prompt, greeting]+messages`, chamadas via `start_chat(...).send_message(...)`, persistindo entradas/saídas na base e registrando logs de debug.
+- `assistant.py`: integra com Google Generative AI (Gemini). Carga do `.env`, configuração do modelo `gemini-2.5-flash`, histórico `[system_prompt, greeting]+messages`, chamadas via `start_chat(...).send_message(...)`, persistindo entradas/saídas na base, consultando o índice vetorial (`knowledge_base.py`) para fornecer contexto, registrando logs de depuração e interpretando marcações `<action type="create_project">{...}</action>` para criar projetos automaticamente (incluindo estimativa de elementos quando o alvo de ganho é informado).
+  - O mecanismo de ações permite que o AntennaExpert guie o usuário e execute tarefas (ex.: criação de projetos) emitindo `<action type="create_project">{...}</action>`; o backend interpreta o JSON, resolve a antena, estima `v_count`/`h_count` a partir do ganho desejado (`target_gain_dbi`) e salva o novo projeto, retornando o link direto ao usuário.
+- `knowledge_base.py`: constrói/consulta um índice vetorial dos documentos (`docs/`) usando SentenceTransformers, armazenando embeddings em `vector_store/` e servindo trechos relevantes para enriquecer as respostas do assistente.
 - `email.py`: envio de e-mails transacionais (confirmação, alertas admin).
 - `pattern_parser.py`: leitura robusta de arquivos CSV/TXT (colunas Theta/E/Emax), fallback genérico.
 - `metrics.py`: utilidades matemáticas (HPBW, diretividade, ripple, SLL, conversões dB↔linear), reutilizadas por relatórios e composições.
@@ -168,3 +171,4 @@ Cada migração é encadeada; `flask db upgrade` aplica toda a sequência.
 ## 7. Conclusão
 
 Este projeto combina uma arquitetura Flask modular com cálculos especializados para RF, geração de relatórios e suporte inteligente por IA. A organização detalhada em modelos, serviços e camadas de apresentação facilita manutenção e expansão. Este documento, aliado ao `proc.md`, deve ser mantido atualizado a cada alteração estrutural significativa para garantir rastreabilidade e alinhamento entre código e operação.
+- Use o comando `flask rebuild-knowledge --source docs` para indexar/atualizar os datasheets. Caso o modelo de embeddings exija autenticação, defina `HUGGINGFACEHUB_API_TOKEN` (ou equivalente) antes de rodar o comando.

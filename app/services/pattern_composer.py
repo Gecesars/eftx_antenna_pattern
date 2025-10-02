@@ -95,10 +95,14 @@ def compose_horizontal_pattern(project: Project) -> tuple[np.ndarray, np.ndarray
     wavelength = C_LIGHT / frequency_hz
     wave_number = 2.0 * math.pi / wavelength
 
+    if count > 1 and spacing <= EPSILON:
+        spacing = wavelength / 2.0
+        project.h_spacing_m = spacing
+
     angles_rad = np.radians(angles)
     composite = np.zeros_like(angles_rad, dtype=complex)
 
-    if count == 1 or spacing <= EPSILON:
+    if count == 1:
         composite = element_pattern.astype(complex)
     else:
         beta_rad = math.radians(beta_deg)
@@ -175,6 +179,10 @@ def compose_vertical_pattern(project: Project) -> tuple[np.ndarray, np.ndarray]:
     wavelength = C_LIGHT / frequency_hz
     wave_number = 2.0 * math.pi / wavelength
 
+    if count > 1 and spacing <= EPSILON:
+        spacing = wavelength / 2.0
+        project.v_spacing_m = spacing
+
     theta_rad = np.deg2rad(angles)
     psi = wave_number * spacing * np.sin(theta_rad) + beta_rad
     indices = np.arange(count, dtype=float).reshape((-1, 1))
@@ -213,6 +221,8 @@ def compute_erp(project: Project) -> dict[str, np.ndarray]:
         "erp_dbw": erp_dbw,
         "erp_w": erp_w,
         "vertical_scalar": vertical_scalar,
+        "effective_h_spacing_m": project.h_spacing_m,
+        "effective_v_spacing_m": project.v_spacing_m,
     }
 
 

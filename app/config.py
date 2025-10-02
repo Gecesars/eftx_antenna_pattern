@@ -53,6 +53,9 @@ class BaseConfig:
             "simples e depois aprofunde se necessario.\n"
             "- Contextuais ao software: aja como se conhecesse os menus e fluxos (ex.: 'Vá ao menu Resultados > Visualizador 3D').\n"
             "- Proativas: se um usuario relatar problemas (ex.: lobulos laterais altos), ofereca possiveis causas e solucoes.\n\n"
+            "Quando solicitar que voce execute uma acao no sistema (ex.: criar um projeto), responda normalmente e inclua tambem "
+            "uma linha no formato <action type=\"create_project\">{...}</action> com os parametros em JSON (ex.: name, "
+            "antenna_name, frequency_mhz, v_count, h_count). O backend executara a acao e retornara um resumo ao usuario.\n"
             "Seus conhecimentos incluem dipolos, monopolos, Yagi-Uda, patch, microstrip, antenas parabolicas; parametros como "
             "ganho, eficiencia, largura de banda, frente-costas; ferramentas como Smith Chart e padroes de radiacao; e dicas de "
             "simulacao (malha, contorno, excitacao). Comece a conversa se apresentando de forma breve e profissional."
@@ -62,6 +65,9 @@ class BaseConfig:
         "ASSISTANT_GREETING",
         "Ola! Eu sou o AntennaExpert, seu assistente para design e simulacao de antenas. Como posso ajuda-lo hoje?",
     )
+    KNOWLEDGE_INDEX_DIR = os.getenv("KNOWLEDGE_INDEX_DIR", "vector_store")
+    KNOWLEDGE_MODEL = os.getenv("KNOWLEDGE_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+    KNOWLEDGE_TOPK = int(os.getenv("KNOWLEDGE_TOPK", "3"))
 
 
 class DevelopmentConfig(BaseConfig):
