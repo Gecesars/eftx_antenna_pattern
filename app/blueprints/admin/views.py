@@ -212,11 +212,11 @@ def _titleize(identifier: str) -> str:
     parts = [part for part in identifier.replace("_", " ").split(" ") if part]
     return " ".join(part.capitalize() for part in parts) or identifier
 
-
 def _truncate(text: str, limit: int = 60) -> str:
     if len(text) <= limit:
         return text
-    return text[: limit - 1] + ""
+    safe_limit = max(limit - 3, 1)
+    return text[:safe_limit] + "..."
 
 
 def _format_cell_value(value) -> dict:
@@ -329,7 +329,7 @@ def data_list(model_name):
             cell = _format_cell_value(raw_value)
             cell["raw"] = _serialise_value(raw_value)
             values[column.key] = cell
-        rows.append({"values": values, "pk": str(getattr(item, pk_column.key))})
+        rows.append({"cells": values, "pk": str(getattr(item, pk_column.key))})
     return render_template(
         "admin/data/list.html",
         model_name=model_name,

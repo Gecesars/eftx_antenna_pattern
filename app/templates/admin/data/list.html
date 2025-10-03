@@ -24,7 +24,7 @@
                 {% for row in rows %}
                 <tr>
                     {% for column in columns %}
-                    {% set cell = row.values[column.key] %}
+                    {% set cell = row.cells[column.key] %}
                     <td class="data-cell{% if cell.muted %} is-muted{% endif %}{% if cell.is_code %} is-code{% endif %}{% if cell.is_json %} is-json{% endif %}{% if cell.is_multiline %} is-multiline{% endif %}">
                         {% if cell.badge %}
                             <span class="badge badge-{{ cell.badge }}">{{ cell.text }}</span>
