@@ -781,3 +781,197 @@ input, select, textarea { padding: 0.5rem; border-radius: 6px; border: 1px solid
     bottom: 1rem;
   }
 }
+/* Admin data manager enhancements */
+.data-manager .section-intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.data-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.2rem;
+}
+.data-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  background: #f9fbff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.2rem 1.4rem;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.data-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 36px rgba(3, 31, 61, 0.16);
+}
+.data-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+.data-card h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--brand-primary);
+}
+.data-card-pill {
+  display: inline-block;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(10, 78, 139, 0.12);
+  color: var(--brand-primary);
+}
+.data-card dl {
+  display: flex;
+  gap: 1.6rem;
+  margin: 0 0 0.6rem;
+}
+.data-card dt {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+}
+.data-card dd {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.data-card-action {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--brand-primary);
+}
+.data-list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+}
+.data-list-count {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+.table-wrapper {
+  overflow-x: auto;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+}
+.data-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+.data-table thead {
+  background: #f8fbff;
+}
+.data-table th,
+.data-table td {
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: top;
+}
+.data-table tbody tr:hover {
+  background: #f8fbff;
+}
+.column-hint {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.actions-column {
+  white-space: nowrap;
+  text-align: right;
+}
+.data-cell.is-muted {
+  color: #94a3b8;
+}
+.data-cell.is-code code {
+  display: inline-block;
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  font-size: 0.85rem;
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 0.2rem 0.35rem;
+}
+.data-cell.is-json details {
+  cursor: pointer;
+}
+.data-cell.is-json summary {
+  font-weight: 600;
+  color: var(--brand-primary);
+  margin-bottom: 0.45rem;
+}
+.data-cell.is-json summary::-webkit-details-marker {
+  display: none;
+}
+.data-cell.is-json pre {
+  margin: 0;
+  padding: 0.75rem;
+  background: rgba(10, 78, 139, 0.07);
+  border-radius: 10px;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.data-cell.is-json code {
+  display: block;
+  font-family: "Consolas", "SFMono-Regular", monospace;
+}
+.data-cell.is-multiline span {
+  white-space: pre-line;
+  display: block;
+}
+.badge-positive {
+  background: rgba(16, 185, 129, 0.2);
+  color: #047857;
+}
+.badge-neutral {
+  background: rgba(148, 163, 184, 0.25);
+  color: #475569;
+}
+.field-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin: 0.25rem 0 0.6rem;
+}
+.form-field.is-readonly input {
+  background: #f1f5f9;
+  color: #64748b;
+}
+.record-id code {
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  background: #f1f5f9;
+  padding: 0.2rem 0.4rem;
+  border-radius: 6px;
+}
+.form-actions {
+  margin-top: 1.2rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+@media (max-width: 768px) {
+  .data-table {
+    min-width: 100%;
+  }
+}

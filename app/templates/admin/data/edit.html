@@ -1,24 +1,24 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block content %}
-<h1>{{ model_name|capitalize }} - Editar</h1>
-<section class="dashboard-section">
-    <p>
+<h1>{{ model_label }} - Editar registro</h1>
+<section class="dashboard-section data-manager">
+    <p class="section-intro">
         <a class="btn" href="{{ url_for('admin.data_list', model_name=model_name) }}">Voltar</a>
-        <strong>ID:</strong> {{ record|attr(pk_name) }}
+        <span class="record-id">ID: <code>{{ record|attr(pk_name) }}</code></span>
     </p>
     <form method="post" class="form-grid">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        {% for column in columns %}
-            <div class="form-field{% if column.primary_key %} disabled{% endif %}">
-                <label>{{ column.key }}{% if column.primary_key %} (somente leitura){% endif %}</label>
-                {% if column.primary_key %}
-                    <input type="text" value="{{ record|attr(column.key) }}" readonly>
+        {% for field in fields %}
+            <div class="form-field{% if field.primary_key %} is-readonly{% endif %}">
+                <label for="field-{{ field.key }}">{{ field.label }}{% if not field.primary_key and not field.nullable %}<span class="required">*</span>{% endif %}</label>
+                <span class="field-hint">{{ field.type_hint }}{% if field.primary_key %} - somente leitura{% elif not field.nullable %} - obrigatorio{% endif %}</span>
+                {% if field.primary_key %}
+                    <input id="field-{{ field.key }}" type="text" value="{{ field.value|e }}" readonly>
                 {% else %}
-                    {% set value = values[column.key] %}
-                    {% if value|length > 80 %}
-                        <textarea name="{{ column.key }}" rows="4">{{ value }}</textarea>
+                    {% if field.widget == 'textarea' %}
+                        <textarea id="field-{{ field.key }}" name="{{ field.key }}" rows="6">{{ field.value }}</textarea>
                     {% else %}
-                        <input type="text" name="{{ column.key }}" value="{{ value }}">
+                        <input id="field-{{ field.key }}" type="text" name="{{ field.key }}" value="{{ field.value|e }}">
                     {% endif %}
                 {% endif %}
             </div>
@@ -30,3 +30,5 @@
     <p class="help">Campos JSON devem ser informados como JSON valido. Datas em formato ISO 8601.</p>
 </section>
 {% endblock %}
+
+

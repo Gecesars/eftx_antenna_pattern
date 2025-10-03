@@ -1,29 +1,56 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block content %}
-<h1>{{ model_name|capitalize }} - Registros</h1>
-<section class="dashboard-section">
-    <p><a class="btn" href="{{ url_for('admin.data_index') }}">Voltar</a></p>
+<h1>{{ model_label }} - Registros</h1>
+<section class="dashboard-section data-manager">
+    <div class="data-list-toolbar">
+        <a class="btn" href="{{ url_for('admin.data_index') }}">Voltar</a>
+        <span class="data-list-count">Exibindo {{ rows|length }} de {{ total_count }} registros</span>
+    </div>
     {% if rows %}
-    <table class="project-table">
-        <thead>
-            <tr>
-                {% for col in columns %}
-                <th>{{ col }}</th>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    {% for column in columns %}
+                    <th>
+                        <span>{{ column.label }}</span>
+                        <span class="column-hint">{{ column.type_hint }}{% if column.is_primary %} - PK{% endif %}</span>
+                    </th>
+                    {% endfor %}
+                    <th class="actions-column">Acoes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    {% for column in columns %}
+                    {% set cell = row.values[column.key] %}
+                    <td class="data-cell{% if cell.muted %} is-muted{% endif %}{% if cell.is_code %} is-code{% endif %}{% if cell.is_json %} is-json{% endif %}{% if cell.is_multiline %} is-multiline{% endif %}">
+                        {% if cell.badge %}
+                            <span class="badge badge-{{ cell.badge }}">{{ cell.text }}</span>
+                        {% elif cell.is_json %}
+                            <details>
+                                <summary>{{ cell.summary or 'JSON' }}</summary>
+                                <pre><code>{{ cell.text }}</code></pre>
+                            </details>
+                        {% elif cell.is_code %}
+                            <code{% if cell.title %} title="{{ cell.title }}"{% endif %}>{{ cell.text }}</code>
+                        {% else %}
+                            <span{% if cell.title %} title="{{ cell.title }}"{% endif %}>{{ cell.text }}</span>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="actions-column">
+                        <a class="btn" href="{{ url_for('admin.data_edit', model_name=model_name, record_id=row.pk) }}">Editar</a>
+                    </td>
+                </tr>
                 {% endfor %}
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in rows %}
-            <tr>
-                {% for col in columns %}
-                <td>{{ row.values[col] }}</td>
-                {% endfor %}
-                <td><a class="btn" href="{{ url_for('admin.data_edit', model_name=model_name, record_id=row.pk) }}">Editar</a></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            </tbody>
+        </table>
+    </div>
+    {% if total_count > limit %}
+    <p class="help">Mostrando apenas os primeiros {{ limit }} registros. Utilize filtros na base de dados para consultar itens adicionais.</p>
+    {% endif %}
     {% else %}
     <p>Nenhum registro encontrado.</p>
     {% endif %}

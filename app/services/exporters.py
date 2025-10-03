@@ -85,6 +85,16 @@ def _format_value(value: float, suffix: str = "") -> str:
     return f"{value:.2f}{suffix}"
 
 
+def _safe_float(value) -> float | None:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric):
+        return None
+    return numeric
+
+
 def angles_to_full_circle(angles_deg: np.ndarray, values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     base_angles = (angles_deg + 360.0) % 360.0
     order = np.argsort(base_angles)
@@ -128,7 +138,13 @@ def _save_polar_plot(path: Path, angles: np.ndarray, values: np.ndarray, title: 
     plt.close(fig)
 
 
-def _save_planar_plot(path: Path, angles: np.ndarray, values: np.ndarray, title: str) -> None:
+def _save_planar_plot(
+    path: Path,
+    angles: np.ndarray,
+    values: np.ndarray,
+    title: str,
+    highlight: tuple[float, float] | None = None,
+) -> None:
     order = np.argsort(angles)
     fig, ax = plt.subplots(figsize=(5.5, 3.5))
     ax.plot(angles[order], values[order], linewidth=1.6, color="#0A4E8B")
@@ -136,6 +152,11 @@ def _save_planar_plot(path: Path, angles: np.ndarray, values: np.ndarray, title:
     ax.set_ylabel("Amplitude (linear)")
     ax.set_title(title)
     ax.grid(True, alpha=0.3)
+    if highlight is not None:
+        angle, amplitude = highlight
+        ax.scatter([angle], [amplitude], color="#D35400", s=40, zorder=5)
+        ax.axvline(angle, color="#D35400", linestyle="--", linewidth=1, alpha=0.6)
+        ax.axhline(amplitude, color="#D35400", linestyle="--", linewidth=1, alpha=0.6)
     fig.savefig(path, dpi=220, bbox_inches="tight")
     plt.close(fig)
 
@@ -407,22 +428,32 @@ def generate_project_export(project: Project, export_root: Path) -> tuple[Projec
     ang_full_vrp, val_full_vrp = vertical_to_full_circle(vrp_angles, vrp_values)
 
     metrics = {
-        "hrp_hpbw": float(hpbw_deg(hrp_angles, hrp_values)),
-        "vrp_hpbw": float(hpbw_deg(vrp_angles, vrp_values)),
-        "front_to_back": float(front_to_back_db(hrp_angles, hrp_values)),
-        "ripple_db": float(ripple_p2p_db(hrp_angles, hrp_values)),
-        "sll_db": float(sidelobe_level_db(hrp_angles, hrp_values)),
-        "peak_angle": float(peak_angle_deg(hrp_angles, hrp_values)),
-        "gain_dbi": float(estimate_gain_dbi(hpbw_deg(hrp_angles, hrp_values), hpbw_deg(vrp_angles, vrp_values))),
-        "directivity_db": float(10 * np.log10(directivity_2d_cut(hrp_angles, hrp_values))) if np.any(hrp_values) else float("nan"),
+        "hrp_hpbw": _safe_float(hpbw_deg(hrp_angles, hrp_values)),
+        "vrp_hpbw": _safe_float(hpbw_deg(vrp_angles, vrp_values)),
+        "front_to_back": _safe_float(front_to_back_db(hrp_angles, hrp_values)),
+        "ripple_db": _safe_float(ripple_p2p_db(hrp_angles, hrp_values)),
+        "sll_db": _safe_float(sidelobe_level_db(hrp_angles, hrp_values)),
+        "peak_angle": _safe_float(peak_angle_deg(hrp_angles, hrp_values)),
+        "gain_dbi": _safe_float(
+            estimate_gain_dbi(
+                hpbw_deg(hrp_angles, hrp_values),
+                hpbw_deg(vrp_angles, vrp_values),
+            )
+        ),
+        "directivity_db": _safe_float(
+            10 * np.log10(directivity_2d_cut(hrp_angles, hrp_values))
+            if np.any(hrp_values)
+            else None
+        ),
     }
     horizon_idx = int(np.argmin(np.abs(vrp_angles))) if vrp_angles.size else 0
-    horizon_value = float(vrp_values[horizon_idx]) if vrp_values.size else float("nan")
+    horizon_value = _safe_float(vrp_values[horizon_idx]) if vrp_values.size else None
 
     export_paths = ExportPaths(export_root, project)
 
     description = project.antenna.name or "EFTX"
-    gain = metrics["gain_dbi"] if math.isfinite(metrics["gain_dbi"]) else float(project.antenna.nominal_gain_dbd or 0.0)
+    gain_metric = metrics.get("gain_dbi")
+    gain = gain_metric if gain_metric is not None else float(project.antenna.nominal_gain_dbd or 0.0)
     num_elems = max(project.h_count or 1, 1) * max(project.v_count or 1, 1)
 
     tail_angles = np.linspace(0, -90, 91)
@@ -445,15 +476,15 @@ def generate_project_export(project: Project, export_root: Path) -> tuple[Projec
     prn_name = project.name
     prn_make = project.antenna.model_number or "EFTX"
     frequency = float(project.frequency_mhz)
-    front_to_back = metrics["front_to_back"] if math.isfinite(metrics["front_to_back"]) else 0.0
+    front_to_back = metrics["front_to_back"] if metrics["front_to_back"] is not None else 0.0
     write_prn(
         export_paths.prn,
         prn_name,
         prn_make,
         frequency,
         "MHz",
-        metrics["hrp_hpbw"] if math.isfinite(metrics["hrp_hpbw"]) else 0.0,
-        metrics["vrp_hpbw"] if math.isfinite(metrics["vrp_hpbw"]) else 0.0,
+        metrics["hrp_hpbw"] if metrics["hrp_hpbw"] is not None else 0.0,
+        metrics["vrp_hpbw"] if metrics["vrp_hpbw"] is not None else 0.0,
         front_to_back,
         gain,
         ang_full_hrp,
@@ -479,7 +510,7 @@ def generate_project_export(project: Project, export_root: Path) -> tuple[Projec
         raw_vrp_angles,
         raw_vrp_values,
         metrics,
-        horizon_value,
+        horizon_value if horizon_value is not None else 0.0,
         antenna_img,
     )
 

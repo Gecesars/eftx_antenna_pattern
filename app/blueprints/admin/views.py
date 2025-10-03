@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+import numbers
+from decimal import Decimal
 from functools import wraps
 from uuid import UUID
 
@@ -206,10 +208,99 @@ def _serialise_value(value) -> str:
     return str(value)
 
 
+def _titleize(identifier: str) -> str:
+    parts = [part for part in identifier.replace("_", " ").split(" ") if part]
+    return " ".join(part.capitalize() for part in parts) or identifier
+
+
+def _truncate(text: str, limit: int = 60) -> str:
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1] + ""
+
+
+def _format_cell_value(value) -> dict:
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, Decimal):
+        value = float(value)
+
+    cell = {
+        "text": "",
+        "title": None,
+        "badge": None,
+        "is_code": False,
+        "is_json": False,
+        "muted": False,
+        "summary": None,
+        "is_multiline": False,
+    }
+
+    if value is None:
+        cell["text"] = "--"
+        cell["muted"] = True
+        return cell
+
+    if isinstance(value, bool):
+        cell["text"] = "Sim" if value else "Nao"
+        cell["badge"] = "positive" if value else "neutral"
+        return cell
+
+    if isinstance(value, datetime):
+        cell["text"] = value.isoformat(timespec="seconds")
+        cell["is_code"] = True
+        return cell
+
+    if isinstance(value, UUID):
+        cell["text"] = str(value)
+        cell["is_code"] = True
+        return cell
+
+    if isinstance(value, (dict, list)):
+        summary = json.dumps(value, ensure_ascii=False)
+        cell["summary"] = _truncate(summary, 70)
+        cell["text"] = json.dumps(value, ensure_ascii=False, indent=2)
+        cell["is_json"] = True
+        cell["is_multiline"] = True
+        return cell
+
+    if isinstance(value, numbers.Integral):
+        cell["text"] = f"{value}"
+        cell["is_code"] = True
+        return cell
+
+    if isinstance(value, numbers.Real):
+        cell["text"] = f"{value:.4f}".rstrip("0").rstrip(".")
+        cell["is_code"] = True
+        return cell
+
+    text = str(value)
+    normalised = text.replace("\r\n", "\n")
+    cell["is_multiline"] = "\n" in normalised
+    limit = 120 if cell["is_multiline"] else 90
+    truncated = _truncate(normalised, limit)
+    cell["text"] = truncated
+    if truncated != normalised:
+        cell["title"] = normalised
+    return cell
+
+
 @admin_bp.route("/data")
 @admin_required
 def data_index():
-    return render_template("admin/data/index.html", models=MANAGED_MODELS)
+    model_cards: list[dict[str, object]] = []
+    for key, model in MANAGED_MODELS.items():
+        mapper = inspect(model)
+        model_cards.append(
+            {
+                "name": key,
+                "label": _titleize(key),
+                "count": model.query.count(),
+                "columns": len(mapper.columns),
+            }
+        )
+    model_cards.sort(key=lambda item: str(item["label"]))
+    return render_template("admin/data/index.html", models=model_cards)
 
 
 @admin_bp.route("/data/<model_name>")
@@ -217,18 +308,36 @@ def data_index():
 def data_list(model_name):
     model = _get_model(model_name)
     mapper = inspect(model)
-    columns = [column.key for column in mapper.columns]
+    columns = [
+        {
+            "key": column.key,
+            "label": _titleize(column.key),
+            "type_hint": column.type.__class__.__name__,
+            "is_primary": column.primary_key,
+        }
+        for column in mapper.columns
+    ]
     pk_column = _primary_key(model)
-    items = model.query.order_by(pk_column).limit(100).all()
+    limit = 100
+    items = model.query.order_by(pk_column).limit(limit).all()
+    total_count = model.query.count()
     rows = []
     for item in items:
-        values = {col: _serialise_value(getattr(item, col)) for col in columns}
+        values = {}
+        for column in mapper.columns:
+            raw_value = getattr(item, column.key)
+            cell = _format_cell_value(raw_value)
+            cell["raw"] = _serialise_value(raw_value)
+            values[column.key] = cell
         rows.append({"values": values, "pk": str(getattr(item, pk_column.key))})
     return render_template(
         "admin/data/list.html",
         model_name=model_name,
+        model_label=_titleize(model_name),
         columns=columns,
         rows=rows,
+        total_count=total_count,
+        limit=limit,
     )
 
 
@@ -266,12 +375,36 @@ def data_edit(model_name, record_id):
         column.key: _serialise_value(getattr(record, column.key))
         for column in mapper.columns
     }
+    form_fields: list[dict[str, object]] = []
+    for column in mapper.columns:
+        value = field_values.get(column.key, "")
+        value_str = value or ""
+        type_name = column.type.__class__.__name__
+        prefer_textarea = (
+            len(value_str) > 120
+            or "\n" in value_str
+            or type_name.lower().startswith("json")
+        )
+        form_fields.append(
+            {
+                "key": column.key,
+                "label": _titleize(column.key),
+                "primary_key": column.primary_key,
+                "nullable": column.nullable,
+                "type_hint": type_name,
+                "value": value_str,
+                "widget": "textarea" if prefer_textarea else "input",
+            }
+        )
     return render_template(
         "admin/data/edit.html",
         model_name=model_name,
-        columns=mapper.columns,
-        values=field_values,
+        model_label=_titleize(model_name),
+        fields=form_fields,
         pk_name=pk_column.key,
         record=record,
         csrf_token=generate_csrf(),
     )
+
+
+
