@@ -26,6 +26,7 @@ from ...extensions import db
 from ...forms.project import ProjectForm
 from ...models import Antenna, Cable, Project, ProjectExport
 from ...services.exporters import generate_project_export
+from ...services.exporters import _build_gemini_description
 from ...services.pattern_composer import get_composition
 from ...services.visuals import generate_project_previews
 from ...utils.calculations import total_feeder_loss, vertical_beta_deg
@@ -111,6 +112,11 @@ def detail(project_id):
         )
     ]
     previews = generate_project_previews(project, composition=composition_arrays)
+    # Descritivo técnico (IA) – usar mesmo gerador do PDF
+    try:
+        tech_description = _build_gemini_description(project, composition_payload.get("metrics"))
+    except Exception:
+        tech_description = None
     latest_export = None
     latest_files = {}
     calibrated_gain = None
@@ -128,6 +134,46 @@ def detail(project_id):
             calibrated_gain = float((latest_export.erp_metadata or {}).get("metrics", {}).get("gain_dbi"))
         except Exception:
             calibrated_gain = None
+    # Construir tabelas multi-coluna para HRP/VRP/ERP
+    def _grid_from_pairs(pairs: list[tuple[float, float, float | None]], columns: int = 6):
+        # pairs: (angulo, valor_linear, valor_db);
+        rows = []
+        per_col = (len(pairs) + columns - 1) // columns
+        for r in range(per_col):
+            row = []
+            for c in range(columns):
+                i = r + c * per_col
+                if i < len(pairs):
+                    ang, lin, dbv = pairs[i]
+                    row.append({"ang": ang, "lin": lin, "db": dbv})
+                else:
+                    row.append(None)
+            rows.append(row)
+        return rows
+
+    import numpy as _np
+    def _safe_db(x: float) -> float:
+        try:
+            return float(10 * _np.log10(x)) if x > 0 else float("nan")
+        except Exception:
+            return float("nan")
+
+    hrp_pairs = []
+    if composition_arrays.get("angles_deg") is not None and composition_arrays.get("hrp_linear") is not None:
+        for a, v in zip(composition_arrays["angles_deg"], composition_arrays["hrp_linear"]):
+            hrp_pairs.append((float(a), float(v), _safe_db(float(v))))
+    vrp_pairs = []
+    if composition_arrays.get("vrp_angles_deg") is not None and composition_arrays.get("vrp_linear") is not None:
+        for a, v in zip(composition_arrays["vrp_angles_deg"], composition_arrays["vrp_linear"]):
+            vrp_pairs.append((float(a), float(v), _safe_db(float(v))))
+    erp_pairs = []
+    for a, w, dbw in erp_rows:
+        erp_pairs.append((float(a), float(w), float(dbw)))
+
+    hrp_grid = _grid_from_pairs(hrp_pairs)
+    vrp_grid = _grid_from_pairs(vrp_pairs)
+    erp_grid = _grid_from_pairs(erp_pairs)
+
     return render_template(
         "projects/detail.html",
         project=project,
@@ -138,6 +184,10 @@ def detail(project_id):
         latest_export=latest_export,
         latest_files=latest_files,
         calibrated_gain=calibrated_gain,
+        tech_description=tech_description,
+        hrp_grid=hrp_grid,
+        vrp_grid=vrp_grid,
+        erp_grid=erp_grid,
     )
 
 

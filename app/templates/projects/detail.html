@@ -10,6 +10,30 @@
         <a class="btn-primary" href="{{ url_for('projects.export', project_id=project.id) }}">Gerar exportacoes</a>
     </div>
 </section>
+
+{% if tech_description %}
+<section class="project-tech-description">
+    <h2>Descritivo técnico</h2>
+    <div class="card">
+        <p style="white-space:pre-line">{{ tech_description }}</p>
+    </div>
+    <hr>
+    <h3>Resumo do sistema</h3>
+    <table class="table table-compact">
+        <thead><tr><th colspan="2">Projeto</th><th colspan="2">Composição</th><th colspan="2">Cabo</th></tr></thead>
+        <tbody>
+            <tr><td>Antena</td><td>{{ project.antenna.name }}</td><td>Elementos V</td><td>{{ project.v_count }}</td><td>Modelo</td><td>{{ project.cable.model_code if project.cable else (project.cable_type or '—') }}</td></tr>
+            <tr><td>Modelo</td><td>{{ project.antenna.model_number or '—' }}</td><td>Δv (m)</td><td>{{ '%.3f'|format(project.v_spacing_m or 0) }}</td><td>Comprimento (m)</td><td>{{ '%.2f'|format(project.cable_length_m or 0) }}</td></tr>
+            <tr><td>Frequência</td><td>{{ '%.2f'|format(project.frequency_mhz) }} MHz</td><td>Tilt V (°)</td><td>{{ '%.2f'|format(project.v_tilt_deg or 0) }}</td><td>Splitters (dB)</td><td>{{ '%.2f'|format(project.splitter_loss_db or 0) }}</td></tr>
+            <tr><td>Potência TX</td><td>{{ '%.1f'|format(project.tx_power_w) }} W</td><td>Beta V (°)</td><td>{{ '%.2f'|format(project.v_beta_deg or 0) }}</td><td>Conectores (dB)</td><td>{{ '%.2f'|format(project.connector_loss_db or 0) }}</td></tr>
+            <tr><td>Altura torre</td><td>{{ '%.2f'|format(project.tower_height_m) }} m</td><td>Nível V</td><td>{{ '%.2f'|format(project.v_level_amp or 0) }}</td><td>Perda total (dB)</td><td>{{ '%.2f'|format(project.feeder_loss_db or 0) }}</td></tr>
+            <tr><td>VSWR alvo</td><td>{{ '%.2f'|format(project.vswr_target or 0) }}</td><td>Elementos H</td><td>{{ project.h_count }}</td><td>Impedância (Ω)</td><td>{{ project.cable.impedance_ohms if project.cable else 50 }}</td></tr>
+            <tr><td>Ganho nominal</td><td>{{ '%.2f'|format((project.antenna.nominal_gain_dbd or 0)+2.15) }} dBi</td><td>Raio (m)</td><td>{{ '%.3f'|format(project.h_spacing_m or 0) }}</td><td>Fabricante</td><td>{{ project.cable.manufacturer if project.cable else '—' }}</td></tr>
+            <tr><td>Notas</td><td colspan="5">{{ project.notes or '—' }}</td></tr>
+        </tbody>
+    </table>
+</section>
+{% endif %}
 {% if latest_export %}
 <section class="export-panel">
     <h2>Downloads do ultimo processamento ({{ latest_export.created_at.strftime('%d/%m/%Y %H:%M') if latest_export.created_at else 'agora' }})</h2>
@@ -90,21 +114,86 @@
     </article>
     {% endfor %}
 </section>
+
 <section>
-    <h2>ERP composto (0°-359°)</h2>
-    <table class="table table-compact" id="erp-table">
-        <thead><tr><th>Angulo</th><th>ERP (W)</th><th>ERP (dBW)</th></tr></thead>
-        <tbody>
-        {% for angle, erp_w, erp_dbw in erp_rows %}
+    <h2>Tabela HRP (multi-coluna)</h2>
+    <table class="table table-compact">
+        <thead>
             <tr>
-                <td>{{ "%03d"|format(angle % 360) }}</td>
-                <td>{{ "%.2f"|format(erp_w) }}</td>
-                <td>{{ "%.2f"|format(erp_dbw) }}</td>
+                {% for _ in range(hrp_grid[0]|length) %}
+                    <th>Ângulo</th><th>Lin</th><th>dB</th>
+                {% endfor %}
             </tr>
-        {% if loop.index % 24 == 0 %}
-            <tr class="separator"><td colspan="3"></td></tr>
-        {% endif %}
-        {% endfor %}
+        </thead>
+        <tbody>
+            {% for row in hrp_grid %}
+            <tr>
+                {% for cell in row %}
+                    {% if cell %}
+                        <td>{{ '%.1f'|format(cell.ang) }}</td>
+                        <td>{{ '%.4f'|format(cell.lin) }}</td>
+                        <td>{{ (cell.db == cell.db) and ('%.2f'|format(cell.db)) or 'N/A' }}</td>
+                    {% else %}
+                        <td></td><td></td><td></td>
+                    {% endif %}
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<section>
+    <h2>Tabela VRP (multi-coluna)</h2>
+    <table class="table table-compact">
+        <thead>
+            <tr>
+                {% for _ in range(vrp_grid[0]|length) %}
+                    <th>Ângulo</th><th>Lin</th><th>dB</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in vrp_grid %}
+            <tr>
+                {% for cell in row %}
+                    {% if cell %}
+                        <td>{{ '%.1f'|format(cell.ang) }}</td>
+                        <td>{{ '%.4f'|format(cell.lin) }}</td>
+                        <td>{{ (cell.db == cell.db) and ('%.2f'|format(cell.db)) or 'N/A' }}</td>
+                    {% else %}
+                        <td></td><td></td><td></td>
+                    {% endif %}
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+<section>
+    <h2>ERP composto (multi-coluna)</h2>
+    <table class="table table-compact">
+        <thead>
+            <tr>
+                {% for _ in range(erp_grid[0]|length) %}
+                    <th>Ângulo</th><th>ERP (W)</th><th>ERP (dBW)</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in erp_grid %}
+            <tr>
+                {% for cell in row %}
+                    {% if cell %}
+                        <td>{{ '%03d'|format(cell.ang % 360) }}</td>
+                        <td>{{ '%.2f'|format(cell.lin) }}</td>
+                        <td>{{ '%.2f'|format(cell.db) }}</td>
+                    {% else %}
+                        <td></td><td></td><td></td>
+                    {% endif %}
+                {% endfor %}
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
 </section>

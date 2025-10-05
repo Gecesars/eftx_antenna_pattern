@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import io
+import json
 import math
 import re
 import tempfile
@@ -17,6 +18,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
+import google.generativeai as genai
 from flask import current_app
 from reportlab.platypus import Table, TableStyle
 from reportlab.lib.utils import ImageReader
@@ -46,6 +48,126 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 
 def resource_path(relative_path: str) -> Path:
     return (BASE_DIR / relative_path).resolve()
+
+
+def _draw_wrapped_text(c: canvas.Canvas, text: str, x: float, y: float, max_width: float, line_height: float = 12, font_name: str = "Helvetica", font_size: int = 10) -> float:
+    c.setFont(font_name, font_size)
+    lines = []
+    for paragraph in (text or "").splitlines():
+        if not paragraph.strip():
+            lines.append("")
+            continue
+        words = paragraph.split()
+        cur = ""
+        for w in words:
+            test = (cur + (" " if cur else "") + w)
+            if c.stringWidth(test, font_name, font_size) <= max_width:
+                cur = test
+            else:
+                if cur:
+                    lines.append(cur)
+                cur = w
+        if cur:
+            lines.append(cur)
+    for ln in lines:
+        c.drawString(x, y, ln)
+        y -= line_height
+    return y
+
+
+def _build_gemini_description(project: Project, metrics: dict | None) -> str:
+    try:
+        genai.configure(api_key=current_app.config.get("GEMINI_API_KEY"))
+        model = genai.GenerativeModel(current_app.config.get("GEMINI_MODEL", "gemini-2.5-flash"))
+    except Exception:
+        model = None
+
+    user = project.owner
+    cable = project.cable
+    payload = {
+        "projeto": project.name,
+        "usuario": {
+            "nome": getattr(user, "full_name", None),
+            "email": getattr(user, "email", None),
+            "telefone": getattr(user, "phone", None),
+            "endereco": {
+                "linha": getattr(user, "address_line", None),
+                "cidade": getattr(user, "city", None),
+                "estado": getattr(user, "state", None),
+                "cep": getattr(user, "postal_code", None),
+                "pais": getattr(user, "country", None),
+            },
+        },
+        "antena": {
+            "nome": project.antenna.name,
+            "modelo": project.antenna.model_number,
+            "ganho_nominal_dbd": project.antenna.nominal_gain_dbd,
+            "faixa_mhz": [project.antenna.frequency_min_mhz, project.antenna.frequency_max_mhz],
+        },
+        "sistema": {
+            "frequencia_mhz": project.frequency_mhz,
+            "potencia_tx_w": project.tx_power_w,
+            "altura_torre_m": project.tower_height_m,
+        },
+        "composicao": {
+            "vertical": {
+                "elementos": project.v_count,
+                "delta_v_m": project.v_spacing_m,
+                "tilt_deg": project.v_tilt_deg,
+                "beta_deg": project.v_beta_deg,
+            },
+            "horizontal": {
+                "elementos": project.h_count,
+                "raio_m": project.h_spacing_m,
+                "step_deg": project.h_step_deg,
+                "beta_deg": project.h_beta_deg,
+            },
+        },
+        "cabo": {
+            "modelo": (cable.model_code if cable else project.cable_type),
+            "nome": (cable.display_name if cable else None),
+            "fabricante": (cable.manufacturer if cable else None),
+            "impedancia_ohms": (cable.impedance_ohms if cable else None),
+            "comprimento_m": project.cable_length_m,
+            "perda_splitter_db": project.splitter_loss_db,
+            "perda_conectores_db": project.connector_loss_db,
+            "perda_total_db": project.feeder_loss_db,
+        },
+        "metricas": metrics or {},
+        "observacoes": project.notes,
+    }
+
+    prompt = (
+        "Você é um engenheiro PhD em RF e antenas. Redija um DESCRITIVO TÉCNICO profissional (pt-BR) do projeto a seguir.\n"
+        "TOM: objetivo, impessoal, técnico (nível profissional).\n"
+        "INCLUA: objetivo, antena empregada (modelo/ganho/faixa), composição vertical (N, Δv, tilt, β) e horizontal (N, raio, step, β), frequência de operação, potência, perdas de alimentação (cabo e acessórios) e resumo de desempenho (HPBW, F/B, ripple, SLL, ganho calibrado).\n"
+        "INCLUA TAMBÉM: dados de contato do usuário (nome, e-mail, telefone e endereço).\n"
+        "RESTRIÇÃO: não invente valores; use apenas os fornecidos.\n"
+        "FORMATO: 2 parágrafos curtos (5–10 linhas no total), linguagem direta e precisa.\n\n"
+        f"DADOS EM JSON:\n{json.dumps(payload, ensure_ascii=False, indent=2)}\n"
+    )
+
+    if model is None:
+        address = ", ".join(filter(None, [getattr(user, "address_line", None), getattr(user, "city", None), getattr(user, "state", None), getattr(user, "country", None)]))
+        return (
+            f"Projeto {project.name}: antena {project.antenna.name} ({project.antenna.model_number or '—'}), {project.frequency_mhz:.2f} MHz, "
+            f"TX {project.tx_power_w:.1f} W, torre {project.tower_height_m:.2f} m. Vertical: {project.v_count} elem, Δv={project.v_spacing_m:.3f} m, tilt={project.v_tilt_deg or 0:.2f}°. "
+            f"Horizontal: {project.h_count} elem, raio={project.h_spacing_m:.3f} m, step={project.h_step_deg or 0:.2f}°. Cabo {payload['cabo']['modelo'] or '—'} ({project.cable_length_m:.2f} m), perdas totais {project.feeder_loss_db or 0:.2f} dB.\n"
+            f"Contato: {getattr(user, 'full_name', '—')} – {getattr(user, 'email', '—')} – {getattr(user, 'phone', '—')} – {address or ''}."
+        )
+    try:
+        resp = model.generate_content([prompt])
+        text = getattr(resp, "text", None) or ""
+        if not text and getattr(resp, "candidates", None):
+            for cand in resp.candidates:
+                parts = getattr(getattr(cand, "content", None), "parts", None)
+                if parts:
+                    for p in parts:
+                        if getattr(p, "text", None):
+                            text += p.text
+        return (text or "").strip()
+    except Exception:
+        return ""
 
 
 def resolve_antenna_image(antenna) -> Path | None:
@@ -355,9 +477,16 @@ def _create_pdf_report(
     template_exists = modelo_path.exists()
     tmp_dir = tempfile.TemporaryDirectory(prefix="eftx_pdf_")
     try:
+        # Preparar canvas e metadados
+        buffer = io.BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        margin = 18 * mm
+
         hrp_full_angles, hrp_full_values = angles_to_full_circle(hrp_angles, hrp_values)
         vrp_full_angles, vrp_full_values = vertical_to_full_circle(vrp_angles, vrp_values)
 
+        # Preparar imagens e seguir com Tabela + Gráficos nas próximas páginas
         hrp_img = Path(tmp_dir.name) / "hrp.png"
         vrp_img = Path(tmp_dir.name) / "vrp.png"
         _save_polar_plot(hrp_img, hrp_angles, hrp_values, "Padrão Horizontal Composto")
@@ -376,60 +505,108 @@ def _create_pdf_report(
             except Exception:
                 pass
 
-        buffer = io.BytesIO()
-        c = canvas.Canvas(buffer, pagesize=A4)
-        width, height = A4
-        margin = 18 * mm
-
-        c.setFont("Helvetica-Bold", 16)
-        c.drawCentredString(width / 2, height - margin, f"Relatório Técnico - {project.name}")
-        c.setFont("Helvetica", 8)
-        c.drawRightString(width - margin, height - margin - 14, f"Processado em: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+        # Página 2 – Parâmetros e padrões
+        c.setFont("Helvetica-Bold", 14)
+        c.drawCentredString(width / 2, height - margin, "Parâmetros do Sistema e do Cabo")
         c.setFont("Helvetica", 9)
 
-        summary_left = [
-            f"Antena: {project.antenna.name}",
-            f"Modelo: {project.antenna.model_number or '—'}",
-            f"Projeto: {project.name}",
-            f"Frequência: {project.frequency_mhz:.2f} MHz",
-            f"Potência TX: {project.tx_power_w:.1f} W",
-            f"Notas: {project.notes or '—'}",
+        # Parâmetros do projeto (tabela organizada em 4 colunas: L/V, V, L/V, V)
+        left_rows = [
+            ("Projeto", project.name),
+            ("Antena", project.antenna.name),
+            ("Modelo", project.antenna.model_number or "—"),
+            ("Frequência", f"{project.frequency_mhz:.2f} MHz"),
+            ("Potência TX", f"{project.tx_power_w:.1f} W"),
+            ("Altura torre", f"{project.tower_height_m:.2f} m"),
+            ("VSWR alvo", f"{project.vswr_target or 0:.2f}"),
         ]
-        summary_right = [
-            f"Elementos H: {project.h_count}",
-            f"Espaçamento H: {project.h_spacing_m:.3f} m",
-            f"Beta H: {project.h_beta_deg or 0:.2f} deg",
-            f"Nível H: {project.h_level_amp or 0:.2f}",
-            f"Elementos V: {project.v_count}",
-            f"Espaçamento V: {project.v_spacing_m:.3f} m",
-            f"Tilt elétrico V: {project.v_tilt_deg or 0:.2f} deg",
-            f"Beta V: {project.v_beta_deg or 0:.2f} deg",
-            f"Nível V: {project.v_level_amp or 0:.2f}",
-            f"VSWR alvo: {project.vswr_target or 0:.2f}",
-            f"Perda alimentação: {project.feeder_loss_db or 0:.2f} dB",
+        right_rows = [
+            ("Elementos V", f"{project.v_count}"),
+            ("Δv (m)", f"{project.v_spacing_m:.3f}"),
+            ("Tilt V (°)", f"{project.v_tilt_deg or 0:.2f}"),
+            ("Beta V (°)", f"{project.v_beta_deg or 0:.2f}"),
+            ("Nível V", f"{project.v_level_amp or 0:.2f}"),
+            ("Elementos H", f"{project.h_count}"),
+            ("Raio arranjo (m)", f"{project.h_spacing_m:.3f}"),
+            ("Step H (°)", f"{project.h_step_deg or 0:.2f}"),
+            ("Beta H (°)", f"{project.h_beta_deg or 0:.2f}"),
+            ("Nível H", f"{project.h_level_amp or 0:.2f}"),
         ]
-        y_left = height - margin - 24
-        for line in summary_left:
-            c.drawString(margin, y_left, line)
-            y_left -= 13
 
+        # Dados do cabo
+        cable_lines = []
+        cable = project.cable
+        if cable is not None:
+            att_curve = getattr(cable, "attenuation_db_per_100m_curve", None)
+            att_at_f = _interp_dict_num(att_curve, float(project.frequency_mhz)) if isinstance(att_curve, dict) else None
+            cable_lines = [
+                ("Cabo", cable.display_name or cable.model_code or "—"),
+                ("Modelo", cable.model_code or "—"),
+                ("Bitola", cable.size_inch or "—"),
+                ("Impedância (Ω)", f"{cable.impedance_ohms or 50}"),
+                ("Fabricante", cable.manufacturer or "—"),
+                ("Comprimento (m)", f"{project.cable_length_m:.2f}"),
+                ("Splitters (dB)", f"{project.splitter_loss_db:.2f}"),
+                ("Conectores (dB)", f"{project.connector_loss_db:.2f}"),
+                ("Perda total (dB)", f"{project.feeder_loss_db or 0:.2f}"),
+                ("Aten. curva @f (dB/100m)", f"{att_at_f:.2f}" if att_at_f is not None else "—"),
+            ]
+        else:
+            cable_lines = [
+                ("Cabo", project.cable_type or "—"),
+                ("Comprimento (m)", f"{project.cable_length_m:.2f}"),
+                ("Splitters (dB)", f"{project.splitter_loss_db:.2f}"),
+                ("Conectores (dB)", f"{project.connector_loss_db:.2f}"),
+                ("Perda total (dB)", f"{project.feeder_loss_db or 0:.2f}"),
+            ]
+
+        max_len = max(len(left_rows), len(right_rows), len(cable_lines))
+        # pad to equal length
+        while len(left_rows) < max_len:
+            left_rows.append(("", ""))
+        while len(right_rows) < max_len:
+            right_rows.append(("", ""))
+        while len(cable_lines) < max_len:
+            cable_lines.append(("", ""))
+
+        # Build table data: [L,V | L,V | L,V]
+        header = ["Projeto", "Valor", "Composição", "Valor", "Cabo", "Valor"]
+        table_data = [header]
+        for i in range(max_len):
+            table_data.append([left_rows[i][0], left_rows[i][1], right_rows[i][0], right_rows[i][1], cable_lines[i][0], cable_lines[i][1]])
+
+        table = Table(table_data, colWidths=[36*mm, 42*mm, 36*mm, 28*mm, 28*mm, 42*mm])
+        table.setStyle(TableStyle([
+            ("GRID", (0,0), (-1,-1), 0.25, colors.gray),
+            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+            ("ALIGN", (0,0), (-1,0), "CENTER"),
+            ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1f2a44")),
+            ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+            ("FONTSIZE", (0,0), (-1,-1), 8),
+            ("LEFTPADDING", (0,0), (-1,-1), 2),
+            ("RIGHTPADDING", (0,0), (-1,-1), 2),
+        ]))
+
+        # Antenna image, if available, placed at top-right inside header area before the table
+        top_y = height - margin - 24
         if antenna_image and antenna_image.exists():
             try:
                 img_reader = ImageReader(str(antenna_image))
-                img_size = 58 * mm
-                c.drawImage(img_reader, width - margin - img_size, height - margin - img_size, width=img_size, height=img_size, preserveAspectRatio=True, mask="auto")
+                img_size = 52 * mm
+                c.drawImage(img_reader, width - margin - img_size, top_y - img_size + 8, width=img_size, height=img_size, preserveAspectRatio=True, mask="auto")
             except Exception:
                 pass
 
-        y_right = height - margin - 24
-        col_x = width / 2 + 6 * mm
-        for line in summary_right:
-            c.drawString(col_x, y_right, line)
-            y_right -= 13
+        # Draw table below header
+        available_width = width - 2 * margin
+        w, h = table.wrap(available_width, height)
+        table.drawOn(c, margin, top_y - h - 6)
+        y_after_table = top_y - h - 10
 
         chart_width = (width - margin * 3) / 2
         chart_height = 120
-        charts_y = min(y_left, y_right) - 22
+        charts_y = y_after_table - 8
         # Títulos dos gráficos de padrão
         c.setFont("Helvetica-Bold", 11)
         c.drawCentredString(margin + chart_width / 2, charts_y, "Padrão Horizontal (polar)")
@@ -438,7 +615,7 @@ def _create_pdf_report(
         c.drawImage(ImageReader(str(vrp_img)), margin * 2 + chart_width, charts_y - chart_height - 12, width=chart_width, height=chart_height, preserveAspectRatio=True, mask="auto")
 
         # Segunda linha: diagramas de composição
-        comp_y = charts_y - chart_height - 30
+        comp_y = charts_y - chart_height - 24
         comp_h = 120
         try:
             # Títulos dos gráficos de composição
