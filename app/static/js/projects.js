@@ -44,7 +44,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const spacing = parseFloat(vSpacingInput.value || 0.5);
     const tilt = parseFloat(vTiltInput.value || 0);
     const width = 200, height = 300, margin = 20;
-    const pitch = count > 1 ? Math.max(24, spacing * 40) : 0;
+    // tamanho impresso constante: distribuímos os elementos uniformemente no espaço disponível
+    const pitch = count > 1 ? (height - margin * 2) / (count - 1) : 0;
     // mastro
     const mast = document.createElementNS("http://www.w3.org/2000/svg", "rect");
     mast.setAttribute("x", String(width/2 - 4)); mast.setAttribute("y", String(margin/2));
@@ -96,16 +97,18 @@ document.addEventListener("DOMContentLoaded", () => {
   function drawHorizontal() {
     clearSvg(hSvg);
     const count = Math.max(parseInt(hCountInput.value || 1, 10), 1);
-    const step = parseFloat(hStepInput.value || 0);
-    const spacing = parseFloat(hSpacingInput.value || 0.5);
-    const size = 300; const cx = size/2; const cy = size/2; const R = 90;
+    const step = parseFloat(hStepInput.value || 0); // offset global
+    const Rm = parseFloat(hSpacingInput.value || 0.5); // raio (m)
+    const size = 300; const cx = size/2; const cy = size/2;
+    // mapa simples metros->pixels com limites
+    const R = Math.max(40, Math.min(110, Rm * 40));
     // ring
     const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     ring.setAttribute("cx", String(cx)); ring.setAttribute("cy", String(cy)); ring.setAttribute("r", String(R));
     ring.setAttribute("fill", "none"); ring.setAttribute("stroke", "#8a8a8a"); ring.setAttribute("stroke-dasharray", "4,4");
     hSvg.appendChild(ring);
     for (let i = 0; i < count; i++) {
-      const ang = (i * (360 / count) + i * step) * Math.PI / 180;
+      const ang = (i * (360 / count) + step) * Math.PI / 180;
       const x = cx + R * Math.cos(ang);
       const y = cy + R * Math.sin(ang);
       const el = document.createElementNS("http://www.w3.org/2000/svg", "rect");
@@ -119,12 +122,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
       label.setAttribute("x", String(cx + lx)); label.setAttribute("y", String(cy + ly)); label.setAttribute("fill", "#555");
       label.setAttribute("text-anchor", "middle"); label.setAttribute("dominant-baseline", "middle");
-      label.textContent = `${(i*(360.0/count)+i*step)%360|0}°`;
+      label.textContent = `${(i*(360.0/count)+step)%360|0}°`;
       hSvg.appendChild(label);
     }
     const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
     lbl.setAttribute("x", String(cx - 40)); lbl.setAttribute("y", String(cy - R - 10)); lbl.setAttribute("fill", "#555");
-    const Rm = spacing * count / (2 * Math.PI);
     lbl.textContent = `N = ${count}, step = ${step}°, R = ${Rm.toFixed(3)} m`;
     hSvg.appendChild(lbl);
   }

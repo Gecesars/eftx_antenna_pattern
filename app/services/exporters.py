@@ -89,58 +89,71 @@ def _save_vertical_composition(path: Path, v_count: int, v_spacing_m: float, v_t
     fig, ax = plt.subplots(figsize=(4.0, 5.0))
     ax.set_aspect('equal')
     ax.axis('off')
-    # stack rectangles
     count = max(int(v_count or 1), 1)
     spacing = float(v_spacing_m or 0.0)
-    height = 1.0
-    width = 2.5
-    y0 = 0.0
+    # tamanho impresso constante: ocupar faixa vertical fixa [ymin,ymax]
+    ymin, ymax = 0.0, 8.0
+    usable = max(ymax - ymin, 1e-6)
+    pitch = usable / max(count - 1, 1)
+    rect_h = 0.9
+    rect_w = 2.4
+    x0 = -rect_w/2
     for i in range(count):
-        rect = patches.Rectangle(( -width/2, y0 + i * (height + 0.5)), width, height, linewidth=1, edgecolor='#cc0000', facecolor='#ffcccc')
+        y = ymin + i * pitch
+        rect = patches.Rectangle((x0, y - rect_h/2), rect_w, rect_h, linewidth=1, edgecolor='#cc0000', facecolor='#ffcccc')
         ax.add_patch(rect)
-    # center-to-center dimension if possible
     if count >= 2:
-        c0 = y0 + height/2
-        c1 = y0 + (height + 0.5) + height/2
-        ax.annotate('', xy=(width/2 + 0.6, c0), xytext=(width/2 + 0.6, c1), arrowprops=dict(arrowstyle='<->', color='#444'))
-        ax.text(width/2 + 0.8, (c0+c1)/2, f"Δv = {spacing:.3f} m", rotation=90, va='center', fontsize=9)
-    # tilt arrow from center
+        c0 = ymin
+        c1 = ymin + pitch
+        ax.annotate('', xy=(rect_w/2 + 0.6, c0), xytext=(rect_w/2 + 0.6, c1), arrowprops=dict(arrowstyle='<->', color='#444'))
+        ax.text(rect_w/2 + 0.85, (c0+c1)/2, f"Δv = {spacing:.3f} m", rotation=90, va='center', fontsize=9)
     tilt = float(v_tilt_deg or 0.0)
-    ax.annotate('', xy=(0.0 + 1.8*np.cos(-np.deg2rad(tilt)), (count/2) * (height + 0.5) + 1.8*np.sin(-np.deg2rad(tilt))),
-                xytext=(0.0, (count/2) * (height + 0.5)), arrowprops=dict(arrowstyle='->', linewidth=2, color='#ff7a00'))
-    ax.text(0.2, (count/2) * (height + 0.5) + 0.2, f"tilt {tilt:.1f}°", color='#ff7a00')
-    # limits
-    ax.set_xlim(-3.5, 4.5)
-    ax.set_ylim(-1.0, (height + 0.5) * max(count, 2) + 1.0)
-    fig.savefig(path, dpi=200, bbox_inches='tight')
+    cy = ymin + (max(count - 1, 0) * pitch) / 2
+    ax.annotate('', xy=(0.0 + 2.0*np.cos(-np.deg2rad(tilt)), cy + 2.0*np.sin(-np.deg2rad(tilt))),
+                xytext=(0.0, cy), arrowprops=dict(arrowstyle='->', linewidth=2, color='#ff7a00'))
+    ax.text(0.2, cy + 0.2, f"tilt {tilt:.1f}°", color='#ff7a00')
+    ax.set_xlim(-3.5, 3.5)
+    ax.set_ylim(ymin - 0.8, ymax + 0.8)
+    fig.savefig(path, dpi=220, bbox_inches='tight')
     plt.close(fig)
 
 def _save_horizontal_composition(path: Path, h_count: int, h_spacing_m: float, h_step_deg: float) -> None:
     import matplotlib.pyplot as plt
     import numpy as np
     import matplotlib.patches as patches
+    from matplotlib.transforms import Affine2D
     fig, ax = plt.subplots(figsize=(5.0, 5.0))
     ax.set_aspect('equal')
     ax.axis('off')
     n = max(int(h_count or 1), 1)
-    s = float(h_spacing_m or 0.0)
-    step = float(h_step_deg or 0.0)
-    # radius from spacing: s = 2πR / n  => R = s*n/(2π)
-    Rm = s * n / (2 * np.pi) if n > 0 else 0.0
-    R = 1.8  # draw radius in arbitrary units
+    Rm = float(h_spacing_m or 0.0)  # raio (m) = distância da face até o centro
+    step = float(h_step_deg or 0.0) # offset global (graus)
+    # mapear raio físico para raio desenhado (unidades arbitrárias) de forma estável
+    R = 0.8 + 1.6 * (Rm / (Rm + 1.0))  # em (0.8, 2.4)
+    # círculo do arranjo
     circ = patches.Circle((0,0), R, fill=False, linestyle='--', color='#8a8a8a')
     ax.add_patch(circ)
-    ax.text(-0.2, R + 0.2, f"R = {Rm:.3f} m", fontsize=9, color='#555')
+    ax.text(-0.2, R + 0.25, f"R = {Rm:.3f} m", fontsize=9, color='#555')
+    # elemento: retângulo radial; a face interna a uma distância R do centro
+    el_w, el_h = 0.35, 0.25  # largura radial, altura tangencial
     for i in range(n):
-        ang = np.deg2rad(i * (360.0/n) + i * step)
-        x = R * np.cos(ang); y = R * np.sin(ang)
-        el = patches.Rectangle((x-0.15, y-0.15), 0.3, 0.3, angle=np.rad2deg(ang), edgecolor='#2a74ff', facecolor='#2a74ff')
-        ax.add_patch(el)
-        # angle label slightly outside
-        lx = (R + 0.35) * np.cos(ang); ly = (R + 0.35) * np.sin(ang)
-        ax.text(lx, ly, f"{(i*(360.0/n)+i*step)%360:.0f}°", ha='center', va='center', fontsize=8)
-    ax.set_xlim(-2.6, 2.6); ax.set_ylim(-2.6, 2.6)
-    fig.savefig(path, dpi=200, bbox_inches='tight')
+        ang_deg = i * (360.0 / n) + step
+        ang = np.deg2rad(ang_deg)
+        # centro do retângulo deslocado meio el_w além da face para fora
+        xc = (R + el_w/2) * np.cos(ang)
+        yc = (R + el_w/2) * np.sin(ang)
+        # retângulo centrado, depois rotacionado para orientar radialmente
+        rect = patches.Rectangle((-el_w/2, -el_h/2), el_w, el_h,
+                                 linewidth=1, edgecolor='#cc0000', facecolor='#ffcccc')
+        t = Affine2D().rotate(ang).translate(xc, yc) + ax.transData
+        rect.set_transform(t)
+        ax.add_patch(rect)
+        # rótulo do ângulo à frente do elemento
+        lx = (R + el_w + 0.35) * np.cos(ang)
+        ly = (R + el_w + 0.35) * np.sin(ang)
+        ax.text(lx, ly, f"{(ang_deg)%360:.0f}°", ha='center', va='center', fontsize=8)
+    ax.set_xlim(-3.0, 3.0); ax.set_ylim(-3.0, 3.0)
+    fig.savefig(path, dpi=220, bbox_inches='tight')
     plt.close(fig)
 
 

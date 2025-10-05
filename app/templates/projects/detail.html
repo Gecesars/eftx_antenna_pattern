@@ -65,6 +65,31 @@
     </div>
 </section>
 {% endif %}
+
+{% set comp_v_url = (latest_files.get('comp_v') if latest_export else None) or previews.get('comp_vertical', {}).get('image') %}
+{% set comp_h_url = (latest_files.get('comp_h') if latest_export else None) or previews.get('comp_horizontal', {}).get('image') %}
+<section class="pattern-visuals">
+    <article class="pattern-figure">
+        <header>
+            <h2>Composição Vertical (ilustração)</h2>
+        </header>
+        {% if comp_v_url %}
+        <img src="{{ comp_v_url }}" alt="Composição vertical (atual)" loading="lazy">
+        {% else %}
+        <p>Sem ilustração disponível.</p>
+        {% endif %}
+    </article>
+    <article class="pattern-figure">
+        <header>
+            <h2>Composição Horizontal (ilustração)</h2>
+        </header>
+        {% if comp_h_url %}
+        <img src="{{ comp_h_url }}" alt="Composição horizontal (atual)" loading="lazy">
+        {% else %}
+        <p>Sem ilustração disponível.</p>
+        {% endif %}
+    </article>
+    </section>
 <section class="pattern-visuals">
     {% for key, preview in previews.items() %}
     <article class="pattern-figure">

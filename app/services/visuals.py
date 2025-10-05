@@ -24,6 +24,7 @@ from .metrics import (
     sidelobe_level_db,
 )
 from .pattern_composer import get_composition, resample_pattern, resample_vertical
+from .exporters import _save_vertical_composition, _save_horizontal_composition
 
 
 def _preview_root() -> tuple[Path, Path]:
@@ -212,6 +213,31 @@ def generate_project_previews(project: Project, composition: Optional[dict[str, 
             "stats": _metrics_to_lines(vrp_metrics, include_front_to_back=False, gain_dbi=None)
             + [f"E/Emax @ 0°: {horizon_value:.4f}"],
         }
+
+    # Ilustrações de composição (sempre atualizadas pelos parâmetros do projeto)
+    comp_v_path = project_dir / "composition_vertical.png"
+    comp_h_path = project_dir / "composition_horizontal.png"
+    try:
+        _save_vertical_composition(comp_v_path, int(project.v_count or 1), float(project.v_spacing_m or 0.0), float(project.v_tilt_deg or 0.0))
+        _save_horizontal_composition(comp_h_path, int(project.h_count or 1), float(project.h_spacing_m or 0.0), float(project.h_step_deg or 0.0))
+        previews["comp_vertical"] = {
+            "image": _write_and_url(comp_v_path, rel_root / "projects" / str(project.id) / "composition_vertical.png"),
+            "stats": [
+                f"N = {int(project.v_count or 1)}",
+                f"Δv = {float(project.v_spacing_m or 0.0):.3f} m",
+                f"tilt = {float(project.v_tilt_deg or 0.0):.1f}°",
+            ],
+        }
+        previews["comp_horizontal"] = {
+            "image": _write_and_url(comp_h_path, rel_root / "projects" / str(project.id) / "composition_horizontal.png"),
+            "stats": [
+                f"N = {int(project.h_count or 1)}",
+                f"R = {float(project.h_spacing_m or 0.0):.3f} m",
+                f"step = {float(project.h_step_deg or 0.0):.1f}°",
+            ],
+        }
+    except Exception:
+        pass
 
     return previews
 

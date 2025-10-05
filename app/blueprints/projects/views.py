@@ -410,7 +410,19 @@ def view_asset(project_id, export_id, name):
     if export_root not in path.parents:
         abort(403)
     if not path.exists():
-        abort(404)
+        # Tentar gerar on-demand as imagens de composição para exports antigos
+        try:
+            from ...services.exporters import _save_vertical_composition, _save_horizontal_composition
+            base = path.parent
+            base.mkdir(parents=True, exist_ok=True)
+            if name == "composicao_vertical.png":
+                _save_vertical_composition(path, int(project.v_count or 1), float(project.v_spacing_m or 0.0), float(project.v_tilt_deg or 0.0))
+            elif name == "composicao_horizontal.png":
+                _save_horizontal_composition(path, int(project.h_count or 1), float(project.h_spacing_m or 0.0), float(project.h_step_deg or 0.0))
+        except Exception:
+            abort(404)
+        if not path.exists():
+            abort(404)
     from flask import request
     download = request.args.get("download") in {"1", "true", "yes"}
     return send_from_directory(path.parent, path.name, as_attachment=download)
