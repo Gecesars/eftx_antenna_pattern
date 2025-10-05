@@ -11,7 +11,7 @@ class ProjectForm(FlaskForm):
     frequency_mhz = FloatField("Frequência (MHz)", validators=[DataRequired(), NumberRange(min=30)])
     tx_power_w = FloatField("Potência TX (W)", validators=[DataRequired(), NumberRange(min=0.1)])
     tower_height_m = FloatField("Altura torre (m)", validators=[DataRequired(), NumberRange(min=0)])
-    cable_type = StringField("Tipo de cabo", validators=[Optional()])
+    cable_id = SelectField("Modelo de cabo", coerce=str, validators=[Optional()])
     cable_length_m = FloatField("Comprimento cabo (m)", validators=[Optional(), NumberRange(min=0)])
     splitter_loss_db = FloatField("Perda splitter (dB)", validators=[Optional(), NumberRange(min=0)])
     connector_loss_db = FloatField("Perda conectores (dB)", validators=[Optional(), NumberRange(min=0)])

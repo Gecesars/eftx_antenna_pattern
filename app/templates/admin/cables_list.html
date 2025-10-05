@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Cabos EFTX</h1>
+<a class="btn-primary" href="{{ url_for('admin.cables_create') }}">Novo cabo</a>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Nome</th>
+            <th>Modelo</th>
+            <th>Bitola</th>
+            <th>Impedancia (ohms)</th>
+            <th>Fabricante</th>
+            <th>Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for cable in cables %}
+        <tr>
+            <td>{{ cable.display_name }}</td>
+            <td>{{ cable.model_code }}</td>
+            <td>{{ cable.size_inch or '-' }}</td>
+            <!-- Atenuação fixa removida: usar curva por frequência -->
+            <td>{{ cable.impedance_ohms or '50' }}</td>
+            <td>{{ cable.manufacturer or '-' }}</td>
+            <td>
+                <a href="{{ url_for('admin.cables_edit', cable_id=cable.id) }}">Editar</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">Nenhum cabo cadastrado.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

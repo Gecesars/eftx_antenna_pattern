@@ -8,12 +8,12 @@ from typing import Iterable, Sequence
 
 import numpy as np
 from flask import current_app
-from sentence_transformers import SentenceTransformer
+from typing import Any as _Any
 from werkzeug.local import LocalProxy
 from pypdf import PdfReader
 
 
-_MODEL_CACHE: dict[str, SentenceTransformer] = {}
+_MODEL_CACHE: dict[str, _Any] = {}
 _EMBEDDINGS: dict[str, np.ndarray] = {}
 _METADATA: dict[str, list[dict]] = {}
 
@@ -32,7 +32,7 @@ def _index_dir() -> Path:
     return path
 
 
-def _model() -> SentenceTransformer:
+def _model():
     raw_name = current_app.config.get("KNOWLEDGE_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
     model_name = raw_name.strip()
     if model_name.startswith("sentence-transformers") and "/" not in model_name.split("sentence-transformers", 1)[-1]:
@@ -48,6 +48,8 @@ def _model() -> SentenceTransformer:
         or None
     )
     try:
+        # Import tardio para evitar custo em caminhos como migrações
+        from sentence_transformers import SentenceTransformer  # type: ignore
         model = SentenceTransformer(model_name, use_auth_token=token)
     except OSError as exc:
         raise RuntimeError(

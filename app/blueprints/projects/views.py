@@ -24,7 +24,7 @@ from flask_login import current_user, login_required
 
 from ...extensions import db
 from ...forms.project import ProjectForm
-from ...models import Antenna, Project, ProjectExport
+from ...models import Antenna, Cable, Project, ProjectExport
 from ...services.exporters import generate_project_export
 from ...services.pattern_composer import get_composition
 from ...services.visuals import generate_project_previews
@@ -32,6 +32,27 @@ from ...utils.calculations import total_feeder_loss, vertical_beta_deg
 
 
 projects_bp = Blueprint("projects", __name__, url_prefix="/projects")
+
+
+def _cable_label(cable: Cable) -> str:
+    parts: list[str] = [cable.display_name]
+    extras: list[str] = []
+    if cable.size_inch:
+        extras.append(cable.size_inch)
+    if cable.model_code and cable.model_code not in {cable.display_name, *(extras or [])}:
+        extras.append(cable.model_code)
+    if cable.manufacturer:
+        extras.append(cable.manufacturer)
+    if extras:
+        parts.append(f"({' / '.join(extras)})")
+    return " ".join(parts)
+
+
+def _cable_choices() -> list[tuple[str, str]]:
+    choices: list[tuple[str, str]] = [("", "-- Selecionar cabo --")]
+    for cable in Cable.query.order_by(Cable.display_name.asc()).all():
+        choices.append((str(cable.id), _cable_label(cable)))
+    return choices
 
 
 
@@ -92,6 +113,7 @@ def detail(project_id):
     previews = generate_project_previews(project, composition=composition_arrays)
     latest_export = None
     latest_files = {}
+    calibrated_gain = None
     if project.revisions:
         latest_export = max(project.revisions, key=lambda exp: exp.created_at or datetime.min)
         latest_files = {
@@ -99,7 +121,13 @@ def detail(project_id):
             "pat": url_for("projects.download", project_id=project.id, export_id=latest_export.id, file_type="pat"),
             "prn": url_for("projects.download", project_id=project.id, export_id=latest_export.id, file_type="prn"),
             "bundle": url_for("projects.download_bundle", project_id=project.id, export_id=latest_export.id),
+            "comp_v": url_for("projects.view_asset", project_id=project.id, export_id=latest_export.id, name="composicao_vertical.png"),
+            "comp_h": url_for("projects.view_asset", project_id=project.id, export_id=latest_export.id, name="composicao_horizontal.png"),
         }
+        try:
+            calibrated_gain = float((latest_export.erp_metadata or {}).get("metrics", {}).get("gain_dbi"))
+        except Exception:
+            calibrated_gain = None
     return render_template(
         "projects/detail.html",
         project=project,
@@ -109,6 +137,7 @@ def detail(project_id):
         previews=previews,
         latest_export=latest_export,
         latest_files=latest_files,
+        calibrated_gain=calibrated_gain,
     )
 
 
@@ -117,6 +146,7 @@ def detail(project_id):
 def create():
     form = ProjectForm()
     form.antenna_id.choices = [(str(a.id), a.name) for a in Antenna.query.order_by(Antenna.name).all()]
+    form.cable_id.choices = _cable_choices()
 
     if form.validate_on_submit():
         try:
@@ -132,13 +162,29 @@ def create():
             _populate_vertical_beta_from_form(form)
             return render_template("projects/form.html", form=form, login_url=url_for("auth.login"))
 
+        cable = None
+        if form.cable_id.data:
+            try:
+                cable_uuid = UUID(form.cable_id.data)
+            except (ValueError, TypeError):
+                form.cable_id.errors.append("Cabo inválido.")
+                _populate_vertical_beta_from_form(form)
+                return render_template("projects/form.html", form=form, login_url=url_for("auth.login"))
+
+            cable = db.session.get(Cable, cable_uuid)
+            if not cable:
+                form.cable_id.errors.append("Cabo inválido.")
+                _populate_vertical_beta_from_form(form)
+                return render_template("projects/form.html", form=form, login_url=url_for("auth.login"))
+
         project = Project(
             owner=current_user,
             name=form.name.data,
             frequency_mhz=form.frequency_mhz.data,
             tx_power_w=form.tx_power_w.data,
             tower_height_m=form.tower_height_m.data,
-            cable_type=form.cable_type.data or None,
+            cable_id=cable.id if cable else None,
+            cable_type=cable.model_code if cable else None,
             cable_length_m=form.cable_length_m.data or 0.0,
             splitter_loss_db=form.splitter_loss_db.data or 0.0,
             connector_loss_db=form.connector_loss_db.data or 0.0,
@@ -158,11 +204,12 @@ def create():
             notes=form.notes.data,
         )
         project.antenna = antenna
+        project.cable = cable
         _apply_vertical_tilt(project)
         project.feeder_loss_db = total_feeder_loss(
             project.cable_length_m,
             project.frequency_mhz,
-            project.cable_type,
+            project.cable_reference,
             project.splitter_loss_db,
             project.connector_loss_db,
         )
@@ -185,8 +232,10 @@ def edit(project_id):
     project = Project.query.filter_by(id=project_id, owner_id=current_user.id).first_or_404()
     form = ProjectForm(obj=project)
     form.antenna_id.choices = [(str(a.id), a.name) for a in Antenna.query.order_by(Antenna.name).all()]
+    form.cable_id.choices = _cable_choices()
     primary_link = project.primary_antenna_link
     form.antenna_id.data = str(primary_link.antenna_id) if primary_link else (form.antenna_id.data or None)
+    form.cable_id.data = str(project.cable_id) if project.cable_id else ""
 
     if form.validate_on_submit():
         try:
@@ -202,12 +251,34 @@ def edit(project_id):
             _populate_vertical_beta_from_form(form, project)
             return render_template("projects/form.html", form=form, project=project)
 
+        cable = None
+        selected_cable_id = form.cable_id.data or ""
+        if selected_cable_id:
+            try:
+                cable_uuid = UUID(selected_cable_id)
+            except (ValueError, TypeError):
+                form.cable_id.errors.append("Cabo inválido.")
+                _populate_vertical_beta_from_form(form, project)
+                return render_template("projects/form.html", form=form, project=project)
+
+            cable = db.session.get(Cable, cable_uuid)
+            if not cable:
+                form.cable_id.errors.append("Cabo inválido.")
+                _populate_vertical_beta_from_form(form, project)
+                return render_template("projects/form.html", form=form, project=project)
+        else:
+            if project.cable_id:
+                project.cable = None
+                project.cable_type = None
+
         project.name = form.name.data
         project.antenna = antenna
         project.frequency_mhz = form.frequency_mhz.data
         project.tx_power_w = form.tx_power_w.data
         project.tower_height_m = form.tower_height_m.data
-        project.cable_type = form.cable_type.data or None
+        if cable:
+            project.cable = cable
+            project.cable_type = cable.model_code
         project.cable_length_m = form.cable_length_m.data or 0.0
         project.splitter_loss_db = form.splitter_loss_db.data or 0.0
         project.connector_loss_db = form.connector_loss_db.data or 0.0
@@ -230,7 +301,7 @@ def edit(project_id):
         project.feeder_loss_db = total_feeder_loss(
             project.cable_length_m,
             project.frequency_mhz,
-            project.cable_type,
+            project.cable_reference,
             project.splitter_loss_db,
             project.connector_loss_db,
         )
@@ -321,3 +392,25 @@ def download_bundle(project_id, export_id):
 
     safe_name = _slugify(f"{project.name}-{export.created_at.strftime('%Y%m%d-%H%M%S') if export.created_at else 'export'}")
     return send_file(zip_buffer, mimetype="application/zip", as_attachment=True, download_name=f"{safe_name}.zip")
+
+
+@projects_bp.route("/<uuid:project_id>/asset/<uuid:export_id>/<path:name>")
+@login_required
+def view_asset(project_id, export_id, name):
+    project = Project.query.filter_by(id=project_id, owner_id=current_user.id).first_or_404()
+    export = ProjectExport.query.filter_by(id=export_id, project_id=project.id).first_or_404()
+    allowed = {"composicao_vertical.png", "composicao_horizontal.png"}
+    if name not in allowed:
+        abort(404)
+    export_root = Path(current_app.config.get("EXPORT_ROOT", "exports")).resolve()
+    base_dir = Path(export.pdf_path).parent if export.pdf_path else None
+    if not base_dir:
+        abort(404)
+    path = (export_root / base_dir / name).resolve()
+    if export_root not in path.parents:
+        abort(403)
+    if not path.exists():
+        abort(404)
+    from flask import request
+    download = request.args.get("download") in {"1", "true", "yes"}
+    return send_from_directory(path.parent, path.name, as_attachment=download)

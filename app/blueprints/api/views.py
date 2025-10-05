@@ -9,7 +9,7 @@ from flask_jwt_extended import current_user as jwt_current_user, jwt_required, v
 from flask_login import current_user as login_current_user
 
 from ...extensions import db, limiter, csrf
-from ...models import Antenna, Project, ProjectExport
+from ...models import Antenna, Cable, Project, ProjectExport
 from ...services.assistant import (
     AssistantServiceError,
     ConversationSnapshot,
@@ -81,6 +81,19 @@ def _resolve_antenna(antenna_id) -> Antenna:
     return antenna
 
 
+def _resolve_cable(cable_id) -> Cable | None:
+    if cable_id in (None, "", 0, "0"):
+        return None
+    try:
+        cable_uuid = UUID(str(cable_id))
+    except (TypeError, ValueError):
+        abort(400, description="Cabo invalido.")
+    cable = db.session.get(Cable, cable_uuid)
+    if not cable:
+        abort(404, description="Cabo nao encontrado.")
+    return cable
+
+
 def _antenna_to_dict(antenna: Antenna) -> dict:
     return {
         "id": str(antenna.id),
@@ -114,7 +127,11 @@ def _project_to_dict(project: Project, *, include_exports: bool = False) -> dict
         "frequency_mhz": project.frequency_mhz,
         "tx_power_w": project.tx_power_w,
         "tower_height_m": project.tower_height_m,
+        "cable_id": str(project.cable_id) if project.cable_id else None,
         "cable_type": project.cable_type,
+        "cable_model_code": (project.cable.model_code if project.cable else project.cable_type),
+        "cable_display_name": project.cable.display_name if project.cable else None,
+        "cable_size_inch": project.cable.size_inch if project.cable else None,
         "cable_length_m": project.cable_length_m,
         "splitter_loss_db": project.splitter_loss_db,
         "connector_loss_db": project.connector_loss_db,
@@ -202,6 +219,11 @@ def _create_project_from_payload(payload: dict) -> Project:
     v_count = _parse_int(payload.get("v_count"), "v_count", required=True)
     h_count = _parse_int(payload.get("h_count"), "h_count", required=True)
 
+    cable = _resolve_cable(payload.get("cable_id"))
+    cable_type_value = _optional_str(payload.get("cable_type"))
+    if cable:
+        cable_type_value = cable.model_code
+
     project = Project(
         owner=jwt_current_user,
         antenna=antenna,
@@ -209,7 +231,7 @@ def _create_project_from_payload(payload: dict) -> Project:
         frequency_mhz=frequency_mhz,
         tx_power_w=tx_power_w,
         tower_height_m=tower_height_m,
-        cable_type=_optional_str(payload.get("cable_type")),
+        cable_type=cable_type_value,
         cable_length_m=_parse_float(payload.get("cable_length_m"), "cable_length_m", default=0.0) or 0.0,
         splitter_loss_db=_parse_float(payload.get("splitter_loss_db"), "splitter_loss_db", default=0.0) or 0.0,
         connector_loss_db=_parse_float(payload.get("connector_loss_db"), "connector_loss_db", default=0.0) or 0.0,
@@ -227,11 +249,12 @@ def _create_project_from_payload(payload: dict) -> Project:
         h_norm_mode=_normalise_mode(payload.get("h_norm_mode"), "horizontal"),
         notes=_optional_str(payload.get("notes")),
     )
+    project.cable = cable
     project.v_beta_deg = vertical_beta_deg(project.frequency_mhz, project.v_spacing_m or 0.0, project.v_tilt_deg or 0.0)
     project.feeder_loss_db = total_feeder_loss(
         project.cable_length_m,
         project.frequency_mhz,
-        project.cable_type,
+        project.cable_reference,
         project.splitter_loss_db,
         project.connector_loss_db,
     )
@@ -257,9 +280,18 @@ def _update_project_from_payload(project: Project, payload: dict) -> None:
     for field in ("tx_power_w", "tower_height_m"):
         if field in payload:
             setattr(project, field, _parse_float(payload.get(field), field, required=True))
-    for field in ("cable_type", "notes"):
-        if field in payload:
-            setattr(project, field, _optional_str(payload.get(field)))
+    if "cable_id" in payload:
+        cable = _resolve_cable(payload.get("cable_id"))
+        project.cable = cable
+        project.cable_type = cable.model_code if cable else None
+        recompute_feeder = True
+    if "cable_type" in payload and "cable_id" not in payload:
+        project.cable_type = _optional_str(payload.get("cable_type"))
+        if project.cable_id:
+            project.cable = None
+        recompute_feeder = True
+    if "notes" in payload:
+        project.notes = _optional_str(payload.get("notes"))
     for field in ("cable_length_m", "splitter_loss_db", "connector_loss_db"):
         if field in payload:
             setattr(project, field, _parse_float(payload.get(field), field, default=0.0) or 0.0)
@@ -298,7 +330,7 @@ def _update_project_from_payload(project: Project, payload: dict) -> None:
         project.feeder_loss_db = total_feeder_loss(
             project.cable_length_m,
             project.frequency_mhz,
-            project.cable_type,
+            project.cable_reference,
             project.splitter_loss_db,
             project.connector_loss_db,
         )
@@ -508,7 +540,7 @@ def project_patterns(project_id):
         project.feeder_loss_db = total_feeder_loss(
             project.cable_length_m,
             project.frequency_mhz,
-            project.cable_type,
+            project.cable_reference,
             project.splitter_loss_db,
             project.connector_loss_db,
         )

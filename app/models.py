@@ -93,6 +93,11 @@ class Antenna(TimestampMixin, BaseModel):
     polarization: Mapped[str | None] = mapped_column(String(32))
     frequency_min_mhz: Mapped[float | None] = mapped_column(Float)
     frequency_max_mhz: Mapped[float | None] = mapped_column(Float)
+    manufacturer: Mapped[str | None] = mapped_column(String(80))
+    datasheet_path: Mapped[str | None] = mapped_column(String(255))
+    gain_table: Mapped[dict | None] = mapped_column(JSONB)
+    category: Mapped[str | None] = mapped_column(String(32))
+    thumbnail_path: Mapped[str | None] = mapped_column(String(255))
 
     patterns: Mapped[list["AntennaPattern"]] = relationship(
         back_populates="antenna",
@@ -160,6 +165,40 @@ class AntennaPatternPoint(TimestampMixin, BaseModel):
     pattern: Mapped["AntennaPattern"] = relationship(back_populates="points")
 
 
+class Cable(TimestampMixin, BaseModel):
+    __tablename__ = "cabos"
+
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
+    model_code: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
+    size_inch: Mapped[str | None] = mapped_column(String(32))
+    impedance_ohms: Mapped[float | None] = mapped_column(Float)
+    manufacturer: Mapped[str | None] = mapped_column(String(80))
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    # Características estendidas do cabo (opcionais)
+    datasheet_path: Mapped[str | None] = mapped_column(String(255))
+    frequency_min_mhz: Mapped[float | None] = mapped_column(Float)
+    frequency_max_mhz: Mapped[float | None] = mapped_column(Float)
+    velocity_factor: Mapped[float | None] = mapped_column(Float)
+    max_power_w: Mapped[float | None] = mapped_column(Float)
+    min_bend_radius_mm: Mapped[float | None] = mapped_column(Float)
+    outer_diameter_mm: Mapped[float | None] = mapped_column(Float)
+    weight_kg_per_km: Mapped[float | None] = mapped_column(Float)
+    vswr_max: Mapped[float | None] = mapped_column(Float)
+    shielding_db: Mapped[float | None] = mapped_column(Float)
+    temperature_min_c: Mapped[float | None] = mapped_column(Float)
+    temperature_max_c: Mapped[float | None] = mapped_column(Float)
+    conductor_material: Mapped[str | None] = mapped_column(String(80))
+    dielectric_material: Mapped[str | None] = mapped_column(String(80))
+    jacket_material: Mapped[str | None] = mapped_column(String(80))
+    shielding_type: Mapped[str | None] = mapped_column(String(80))
+    conductor_diameter_mm: Mapped[float | None] = mapped_column(Float)
+    dielectric_diameter_mm: Mapped[float | None] = mapped_column(Float)
+    attenuation_db_per_100m_curve: Mapped[dict | None] = mapped_column(JSONB)
+
+    projects: Mapped[list["Project"]] = relationship(back_populates="cable")
+
+
 class Project(TimestampMixin, BaseModel):
     __tablename__ = "projects"
 
@@ -170,6 +209,7 @@ class Project(TimestampMixin, BaseModel):
     tx_power_w: Mapped[float] = mapped_column(Float, nullable=False)
     tower_height_m: Mapped[float] = mapped_column(Float, nullable=False)
     cable_type: Mapped[str | None] = mapped_column(String(120))
+    cable_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cabos.id", ondelete="SET NULL"), index=True)
     cable_length_m: Mapped[float] = mapped_column(Float, default=0.0)
     splitter_loss_db: Mapped[float] = mapped_column(Float, default=0.0)
     connector_loss_db: Mapped[float] = mapped_column(Float, default=0.0)
@@ -194,6 +234,7 @@ class Project(TimestampMixin, BaseModel):
     composition_meta: Mapped[dict | None] = mapped_column(JSONB)
 
     owner: Mapped["User"] = relationship(back_populates="projects")
+    cable: Mapped["Cable | None"] = relationship(back_populates="projects")
     antennas: Mapped[list["ProjectAntenna"]] = relationship(
         back_populates="project",
         cascade="all, delete-orphan",
@@ -227,6 +268,10 @@ class Project(TimestampMixin, BaseModel):
                     position_index=0,
                 )
             )
+
+    @property
+    def cable_reference(self) -> "Cable | str | None":
+        return self.cable or self.cable_type
 
 
 class ProjectAntenna(TimestampMixin, BaseModel):

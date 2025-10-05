@@ -12,7 +12,7 @@ import google.generativeai as genai
 from flask import current_app, url_for
 
 from ..extensions import db
-from ..models import AssistantConversation, AssistantMessage, User, Antenna, Project
+from ..models import AssistantConversation, AssistantMessage, Cable, User, Antenna, Project
 from ..utils.calculations import total_feeder_loss, vertical_beta_deg
 from .knowledge_base import retrieve_contexts
 from .pattern_composer import compute_erp, serialize_erp_payload
@@ -236,6 +236,25 @@ def _assistant_create_project(user: User, payload: dict) -> str:
     tx_power_w = float(payload.get("tx_power_w") or 1.0)
     tower_height_m = float(payload.get("tower_height_m") or 30.0)
     cable_type = (payload.get("cable_type") or None)
+    cable: Cable | None = None
+    cable_id = payload.get("cable_id")
+    if cable_id not in (None, "", 0, "0"):
+        try:
+            cable_uuid = uuid.UUID(str(cable_id))
+            cable = db.session.get(Cable, cable_uuid)
+        except (ValueError, TypeError):  # pragma: no cover - payload defesa
+            cable = None
+    if cable is None and cable_type:
+        cable = (
+            Cable.query.filter(
+                (Cable.model_code.ilike(f"%{cable_type}%"))
+                | (Cable.display_name.ilike(f"%{cable_type}%"))
+            )
+            .order_by(Cable.created_at.desc())
+            .first()
+        )
+    if cable:
+        cable_type = cable.model_code
     cable_length_m = float(payload.get("cable_length_m") or 0.0)
     splitter_loss_db = float(payload.get("splitter_loss_db") or 0.0)
     connector_loss_db = float(payload.get("connector_loss_db") or 0.0)
@@ -304,11 +323,12 @@ def _assistant_create_project(user: User, payload: dict) -> str:
     )
 
     project.antenna = antenna
+    project.cable = cable
     project.v_beta_deg = vertical_beta_deg(project.frequency_mhz, project.v_spacing_m or 0.0, project.v_tilt_deg or 0.0)
     project.feeder_loss_db = total_feeder_loss(
         project.cable_length_m,
         project.frequency_mhz,
-        project.cable_type,
+        project.cable_reference,
         project.splitter_loss_db,
         project.connector_loss_db,
     )

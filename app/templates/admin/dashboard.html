@@ -24,4 +24,10 @@
         {% endfor %}
     </ul>
 </section>
+<section>
+    <h2>Gestão de cabos</h2>
+    <p>Cadastre e mantenha os modelos utilizados nas perdas de alimentação.</p>
+    <a class="btn" href="{{ url_for('admin.cables_create') }}">Novo cabo</a>
+    <a class="btn" href="{{ url_for('admin.cables_list') }}">Ver todos</a>
+</section>
 {% endblock %}

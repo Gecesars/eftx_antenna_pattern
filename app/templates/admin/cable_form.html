@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ 'Editar' if cable else 'Novo' }} cabo</h1>
+<div class="toolbar">
+    <button type="button" class="btn" id="open-datasheet-modal">Extrair do datasheet (beta)</button>
+    <small class="help">Faça upload do PDF e edite os valores antes de aplicar.</small>
+</div>
+<form method="post" novalidate class="form-grid" id="cable-form">
+    {{ form.hidden_tag() }}
+    <label>
+        {{ form.display_name.label }}
+        {{ form.display_name(size=40) }}
+        {% if form.display_name.errors %}<span class="error">{{ form.display_name.errors[0] }}</span>{% endif %}
+    </label>
+    <label>
+        {{ form.model_code.label }}
+        {{ form.model_code(size=32) }}
+        {% if form.model_code.errors %}<span class="error">{{ form.model_code.errors[0] }}</span>{% endif %}
+    </label>
+    <label>
+        {{ form.size_inch.label }}
+        {{ form.size_inch(size=12, placeholder='Ex: 1 5/8"') }}
+    </label>
+    <!-- Atenuação fixa removida: usar curva de atenuação por frequência -->
+    <label>
+        {{ form.impedance_ohms.label }}
+        {{ form.impedance_ohms(step='0.1') }}
+    </label>
+    <label>
+        {{ form.manufacturer.label }}
+        {{ form.manufacturer(size=32) }}
+    </label>
+    <label class="form-grid-span">
+        {{ form.notes.label }}
+        {{ form.notes(rows=3, cols=50) }}
+    </label>
+    <label>
+        {{ form.frequency_min_mhz.label }}
+        {{ form.frequency_min_mhz(step='0.1') }}
+    </label>
+    <label>
+        {{ form.frequency_max_mhz.label }}
+        {{ form.frequency_max_mhz(step='0.1') }}
+    </label>
+    <label>
+        {{ form.velocity_factor.label }}
+        {{ form.velocity_factor(step='0.001', placeholder='0.8') }}
+    </label>
+    <label>
+        {{ form.max_power_w.label }}
+        {{ form.max_power_w(step='1') }}
+    </label>
+    <label>
+        {{ form.min_bend_radius_mm.label }}
+        {{ form.min_bend_radius_mm(step='0.1') }}
+    </label>
+    <label>
+        {{ form.outer_diameter_mm.label }}
+        {{ form.outer_diameter_mm(step='0.01') }}
+    </label>
+    <label>
+        {{ form.weight_kg_per_km.label }}
+        {{ form.weight_kg_per_km(step='0.01') }}
+    </label>
+    <label>
+        {{ form.vswr_max.label }}
+        {{ form.vswr_max(step='0.01') }}
+    </label>
+    <label>
+        {{ form.shielding_db.label }}
+        {{ form.shielding_db(step='0.1') }}
+    </label>
+    <label>
+        {{ form.temperature_min_c.label }}
+        {{ form.temperature_min_c(step='0.1') }}
+    </label>
+    <label>
+        {{ form.temperature_max_c.label }}
+        {{ form.temperature_max_c(step='0.1') }}
+    </label>
+    <label>
+        {{ form.conductor_material.label }}
+        {{ form.conductor_material(size=24) }}
+    </label>
+    <label>
+        {{ form.dielectric_material.label }}
+        {{ form.dielectric_material(size=24) }}
+    </label>
+    <label>
+        {{ form.jacket_material.label }}
+        {{ form.jacket_material(size=24) }}
+    </label>
+    <label>
+        {{ form.shielding_type.label }}
+        {{ form.shielding_type(size=24) }}
+    </label>
+    <label>
+        {{ form.conductor_diameter_mm.label }}
+        {{ form.conductor_diameter_mm(step='0.01') }}
+    </label>
+    <label>
+        {{ form.dielectric_diameter_mm.label }}
+        {{ form.dielectric_diameter_mm(step='0.01') }}
+    </label>
+    <label class="form-grid-span">
+        {{ form.attenuation_db_per_100m_curve.label }}
+        {{ form.attenuation_db_per_100m_curve(rows=4, cols=50, placeholder='{"100": 5.3, "200": 7.9, ...}') }}
+    </label>
+    <label class="form-grid-span">
+        {{ form.datasheet_path.label }}
+        {{ form.datasheet_path(size=60, readonly=True) }}
+    </label>
+    {{ form.submit(class_='btn-primary') }}
+</form>
+
+<div class="modal" id="datasheet-modal" hidden>
+    <div class="modal-dialog">
+        <header class="modal-header">
+            <strong>Extrair do datasheet</strong>
+            <button type="button" class="modal-close" aria-label="Fechar" data-role="close">&times;</button>
+        </header>
+        <div class="modal-body">
+            <p>Envie o PDF/TXT do datasheet do cabo para pré-preenchimento.</p>
+            <input type="file" id="datasheet-file" accept=".pdf,.txt,.csv,.md,.rtf,.doc,.docx" />
+            <div id="datasheet-status" class="status" aria-live="polite"></div>
+            <form id="datasheet-preview" class="form-grid" hidden>
+                <!-- Campos básicos -->
+                <label>Nome de exibição <input name="display_name" type="text"></label>
+                <label>Modelo <input name="model_code" type="text"></label>
+                <label>Bitola (pol) <input name="size_inch" type="text"></label>
+                <!-- Campo de atenuação fixa removido do preview -->
+                <label>Impedância (ohms) <input name="impedance_ohms" type="number" step="0.1"></label>
+                <label>Fabricante <input name="manufacturer" type="text"></label>
+                <label>Fator de velocidade <input name="velocity_factor" type="number" step="0.001"></label>
+                <label>Potência máx (W) <input name="max_power_w" type="number" step="1"></label>
+                <label>Raio mín curvatura (mm) <input name="min_bend_radius_mm" type="number" step="0.1"></label>
+                <label>Ø externo (mm) <input name="outer_diameter_mm" type="number" step="0.01"></label>
+                <label>Peso (kg/km) <input name="weight_kg_per_km" type="number" step="0.01"></label>
+                <label>VSWR máx <input name="vswr_max" type="number" step="0.01"></label>
+                <label>Blindagem (dB) <input name="shielding_db" type="number" step="0.1"></label>
+                <label>Temp mín (°C) <input name="temperature_min_c" type="number" step="0.1"></label>
+                <label>Temp máx (°C) <input name="temperature_max_c" type="number" step="0.1"></label>
+                <label>Material condutor <input name="conductor_material" type="text"></label>
+                <label>Material dielétrico <input name="dielectric_material" type="text"></label>
+                <label>Jacket <input name="jacket_material" type="text"></label>
+                <label>Tipo blindagem <input name="shielding_type" type="text"></label>
+                <label>Ø condutor (mm) <input name="conductor_diameter_mm" type="number" step="0.01"></label>
+                <label>Ø dielétrico (mm) <input name="dielectric_diameter_mm" type="number" step="0.01"></label>
+                <label class="form-grid-span">Curva de atenuação (JSON)<textarea name="attenuation_db_per_100m_curve" rows="4"></textarea></label>
+                <input type="hidden" name="datasheet_path">
+            </form>
+        </div>
+        <footer class="modal-footer">
+            <button type="button" class="btn" data-role="apply" disabled>Aplicar ao formulário</button>
+        </footer>
+    </div>
+    <div class="modal-backdrop" data-role="close" aria-hidden="true"></div>
+    </div>
+{% block scripts %}
+{{ super() }}
+<script defer src="{{ url_for('static', filename='js/cables.js') }}?v=20251005"></script>
+{% endblock %}
+{% endblock %}

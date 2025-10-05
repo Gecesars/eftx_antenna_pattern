@@ -7,18 +7,29 @@
     <a class="btn-primary" href="{{ url_for('auth.register') }}">Comece agora</a>
     {% endif %}
 </section>
-<section class="portfolio">
+<section class="portfolio" id="portfolio">
     <h2>Portfólio de Antenas</h2>
-    <div class="grid">
-        {% for antenna in antennas %}
+    {% set categories = ["TV", "FM", "Microondas", "Telecom", None] %}
+    {% for cat in categories %}
+        {% set items = grouped.get(cat) if grouped else [] %}
+        {% if items and items|length %}
+        <h3>{{ cat or 'Outras' }}</h3>
+        <div class="grid">
+            {% for antenna in items %}
             <article class="card">
+                {% if antenna.thumbnail_path %}
+                    <img class="thumb" src="{{ url_for('public.antenna_thumb', path=antenna.thumbnail_path) }}" alt="{{ antenna.name }}" loading="lazy">
+                {% endif %}
                 <h3>{{ antenna.name }}</h3>
                 <p>{{ antenna.description or "Sem descrição" }}</p>
+                <small>{{ antenna.manufacturer or 'EFTX Broadcast & Telecom' }}</small>
                 <span>Ganho nominal: {{ '%.1f'|format(antenna.nominal_gain_dbd or 0) }} dBd</span>
             </article>
-        {% else %}
-            <p>Nenhuma antena cadastrada.</p>
-        {% endfor %}
-    </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% else %}
+        <p>Nenhuma antena cadastrada.</p>
+    {% endfor %}
 </section>
 {% endblock %}

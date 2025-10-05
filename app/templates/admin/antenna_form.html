@@ -1,7 +1,11 @@
 ﻿{% extends "base.html" %}
 {% block content %}
 <h1>{{ 'Editar' if antenna else 'Nova' }} antena</h1>
-<form method="post" novalidate class="form-grid">
+<div class="toolbar">
+    <button type="button" class="btn" id="open-antenna-datasheet-modal">Extrair do datasheet (beta)</button>
+    <small class="help">Faça upload do PDF e edite antes de aplicar.</small>
+    </div>
+<form method="post" novalidate class="form-grid" id="antenna-form">
     {{ form.hidden_tag() }}
     <label>{{ form.name.label }} {{ form.name(size=40) }} {{ form.name.errors[0] if form.name.errors }}</label>
     <label>{{ form.model_number.label }} {{ form.model_number(size=20) }}</label>
@@ -10,6 +14,44 @@
     <label>{{ form.polarization.label }} {{ form.polarization(size=20) }}</label>
     <label>{{ form.frequency_min_mhz.label }} {{ form.frequency_min_mhz(step='0.1') }}</label>
     <label>{{ form.frequency_max_mhz.label }} {{ form.frequency_max_mhz(step='0.1') }}</label>
+    <label>{{ form.manufacturer.label }} {{ form.manufacturer(size=24) }}</label>
+    <label>{{ form.category.label }} {{ form.category() }}</label>
+    <label class="form-grid-span">{{ form.datasheet_path.label }} {{ form.datasheet_path(size=60, readonly=True) }}</label>
+    <label class="form-grid-span">{{ form.gain_table.label }} {{ form.gain_table(rows=4, cols=60, placeholder='{"88.5": 6.2, "95.1": 6.0, ...}') }}</label>
+    <label class="form-grid-span">{{ form.thumbnail_path.label }} {{ form.thumbnail_path(size=60, readonly=True) }}</label>
     {{ form.submit(class_='btn-primary') }}
 </form>
+
+<div class="modal" id="antenna-datasheet-modal" hidden>
+  <div class="modal-dialog">
+    <header class="modal-header">
+      <strong>Extrair do datasheet</strong>
+      <button type="button" class="modal-close" aria-label="Fechar" data-role="close">&times;</button>
+    </header>
+    <div class="modal-body">
+      <input type="file" id="antenna-datasheet-file" accept=".pdf,.txt,.md,.rtf,.doc,.docx" />
+      <div id="antenna-datasheet-status" class="status" aria-live="polite"></div>
+      <form id="antenna-datasheet-preview" class="form-grid" hidden>
+        <label>Nome <input name="name" type="text"></label>
+        <label>Modelo <input name="model_number" type="text"></label>
+        <label>Descrição <textarea name="description" rows="3"></textarea></label>
+        <label>Ganho (dBd) <input name="nominal_gain_dbd" type="number" step="0.1"></label>
+        <label>Polarização <input name="polarization" type="text"></label>
+        <label>Frequência mín (MHz) <input name="frequency_min_mhz" type="number" step="0.1"></label>
+        <label>Frequência máx (MHz) <input name="frequency_max_mhz" type="number" step="0.1"></label>
+        <label>Fabricante <input name="manufacturer" type="text"></label>
+        <input type="hidden" name="datasheet_path">
+        <input type="hidden" name="thumbnail_path">
+      </form>
+    </div>
+    <footer class="modal-footer">
+      <button type="button" class="btn" data-role="apply" disabled>Aplicar</button>
+    </footer>
+  </div>
+  <div class="modal-backdrop" data-role="close" aria-hidden="true"></div>
+</div>
+{% block scripts %}
+{{ super() }}
+<script defer src="{{ url_for('static', filename='js/antennas.js') }}?v=20251005"></script>
+{% endblock %}
 {% endblock %}

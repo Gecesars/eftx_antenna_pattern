@@ -1,7 +1,7 @@
 ﻿{% extends "base.html" %}
 {% block content %}
 <h1>{{ 'Editar' if project else 'Novo' }} projeto</h1>
-<form method="post" novalidate class="form-grid-wide">
+<form method="post" novalidate class="form-grid-wide" id="project-form">
     {{ form.hidden_tag() }}
     <div class="form-field" title="Identificação amigável do projeto">
         <label>{{ form.name.label.text }}<span class="required">*</span></label>
@@ -28,10 +28,13 @@
         {{ form.tower_height_m(step='0.1') }}
         {% for error in form.tower_height_m.errors %}<span class="error">{{ error }}</span>{% endfor %}
     </div>
-    <div class="form-field" title="Informe o tipo ou familia do cabo de alimentacao">
-        <label>{{ form.cable_type.label.text }}</label>
-        {{ form.cable_type(size=20) }}
-        {% for error in form.cable_type.errors %}<span class="error">{{ error }}</span>{% endfor %}
+    <div class="form-field" title="Selecione o modelo do cabo conforme cadastro no painel administrativo">
+        <label>{{ form.cable_id.label.text }}</label>
+        {{ form.cable_id() }}
+        {% if project and not project.cable and project.cable_type %}
+            <small class="help">Valor atual sem cadastro: {{ project.cable_type }}</small>
+        {% endif %}
+        {% for error in form.cable_id.errors %}<span class="error">{{ error }}</span>{% endfor %}
     </div>
     <div class="form-field" title="Comprimento total do cabo de alimentacao em metros">
         <label>{{ form.cable_length_m.label.text }}</label>
@@ -54,70 +57,87 @@
         {% for error in form.vswr_target.errors %}<span class="error">{{ error }}</span>{% endfor %}
     </div>
 
+    <div class="form-actions" style="margin: 8px 0;">
+        <button type="button" class="btn" id="open-composition-modal">Configurar composição (visual)</button>
+        <small class="help">Abra para ajustar vertical/horizontal com ilustração.</small>
+    </div>
+
     <fieldset class="form-section" title="Configurações da coluna vertical">
         <legend>Composição vertical</legend>
         <div class="form-field" title="Quantidade de painéis verticais no arranjo">
             <label>{{ form.v_count.label.text }}<span class="required">*</span></label>
             {{ form.v_count() }}
+            <small class="help">Número de elementos empilhados verticalmente.</small>
             {% for error in form.v_count.errors %}<span class="error">{{ error }}</span>{% endfor %}
         </div>
         <div class="form-field" title="Distância entre painéis da coluna">
             <label>{{ form.v_spacing_m.label.text }}</label>
             {{ form.v_spacing_m(step='0.01') }}
+            <small class="help">Espaçamento centro-a-centro entre elementos (m).</small>
             {% for error in form.v_spacing_m.errors %}<span class="error">{{ error }}</span>{% endfor %}
         </div>
         <div class="form-field" title="Tilt elétrico desejado em relação ao horizonte">
             <label>{{ form.v_tilt_deg.label.text }}</label>
             {{ form.v_tilt_deg(step='0.1') }}
+            <small class="help">Ângulo de inclinação do lóbulo principal (°).</small>
             {% for error in form.v_tilt_deg.errors %}<span class="error">{{ error }}</span>{% endfor %}
         </div>
         <div class="form-field" title="Fase progressiva calculada para atender o tilt informado">
             <label>{{ form.v_beta_deg.label.text }}</label>
             {{ form.v_beta_deg(step='0.1') }}
+            <small class="help">Defasagem por elemento (°). Calculada a partir do tilt.</small>
             {% for error in form.v_beta_deg.errors %}<span class="error">{{ error }}</span>{% endfor %}
         </div>
         <div class="form-field" title="Amplitude relativa aplicada a cada elemento">
             <label>{{ form.v_level_amp.label.text }}</label>
             {{ form.v_level_amp(step='0.1') }}
+            <small class="help">Fator de amplitude por elemento (1.0 = uniforme).</small>
             {% for error in form.v_level_amp.errors %}<span class="error">{{ error }}</span>{% endfor %}
         </div>
         <div class="form-field" title="Normalizacao aplicada ao padrão vertical">
             <label>{{ form.v_norm_mode.label.text }}</label>
             {{ form.v_norm_mode() }}
+            <small class="help">Ponto de referência para normalização do padrão.</small>
             {% for error in form.v_norm_mode.errors %}<span class="error">{{ error }}</span>{% endfor %}
         </div>
     </fieldset>
 
     <fieldset class="form-section" title="Configurações do arranjo horizontal">
         <legend>Composição horizontal</legend>
-        <div class="form-field" title="Quantidade de painéis na anel horizontal">
+        <div class="form-field" title="Quantidade de painéis no anel horizontal">
             <label>{{ form.h_count.label.text }}<span class="required">*</span></label>
             {{ form.h_count() }}
+            <small class="help">Número de elementos distribuídos azimutalmente.</small>
             {% for error in form.h_count.errors %}<span class="error">{{ error }}</span>{% endfor %}
         </div>
         <div class="form-field" title="Espaçamento angular entre painéis">
             <label>{{ form.h_spacing_m.label.text }}</label>
             {{ form.h_spacing_m(step='0.01') }}
+            <small class="help">Distância linear entre elementos (m) no anel.</small>
             {% for error in form.h_spacing_m.errors %}<span class="error">{{ error }}</span>{% endfor %}
         </div>
         <div class="form-field" title="Fase progressiva horizontal">
             <label>{{ form.h_beta_deg.label.text }}</label>
             {{ form.h_beta_deg(step='0.1') }}
+            <small class="help">Defasagem entre elementos ao redor do anel (°).</small>
             {% for error in form.h_beta_deg.errors %}<span class="error">{{ error }}</span>{% endfor %}
         </div>
         <div class="form-field" title="Incremento de rotação para painéis sucessivos">
             <label>{{ form.h_step_deg.label.text }}</label>
             {{ form.h_step_deg(step='0.1') }}
+            <small class="help">Rotação do padrão de cada elemento (°).</small>
             {% for error in form.h_step_deg.errors %}<span class="error">{{ error }}</span>{% endfor %}
         </div>
         <div class="form-field" title="Amplitude relativa entre painéis">
             <label>{{ form.h_level_amp.label.text }}</label>
             {{ form.h_level_amp(step='0.1') }}
+            <small class="help">Fator de amplitude por elemento (1.0 = uniforme).</small>
             {% for error in form.h_level_amp.errors %}<span class="error">{{ error }}</span>{% endfor %}
         </div>
         <div class="form-field" title="Normalizacao aplicada ao padrão horizontal">
             <label>{{ form.h_norm_mode.label.text }}</label>
             {{ form.h_norm_mode() }}
+            <small class="help">Ponto de referência para normalização do padrão.</small>
             {% for error in form.h_norm_mode.errors %}<span class="error">{{ error }}</span>{% endfor %}
         </div>
     </fieldset>
@@ -131,4 +151,41 @@
         {{ form.submit(class_='btn-primary') }}
     </div>
 </form>
+
+<div class="modal" id="composition-modal" hidden>
+  <div class="modal-dialog modal-lg">
+    <header class="modal-header">
+      <strong>Composição do sistema</strong>
+      <button type="button" class="modal-close" aria-label="Fechar" data-role="close">&times;</button>
+    </header>
+    <div class="modal-body composition-grid">
+      <section>
+        <h3>Vertical</h3>
+        <div class="form-inline">
+          <label>Elementos <input type="number" id="v_count_input" min="1" step="1"></label>
+          <label>Espaçamento (m) <input type="number" id="v_spacing_input" step="0.01"></label>
+          <label>Tilt (°) <input type="number" id="v_tilt_input" step="0.1"></label>
+        </div>
+        <svg id="vertical-svg" viewBox="0 0 200 300" width="100%" height="220" aria-label="Ilustração vertical"></svg>
+      </section>
+      <section>
+        <h3>Horizontal</h3>
+        <div class="form-inline">
+          <label>Elementos <input type="number" id="h_count_input" min="1" step="1"></label>
+          <label>Espaçamento (m) <input type="number" id="h_spacing_input" step="0.01"></label>
+          <label>Rotação passo (°) <input type="number" id="h_step_input" step="0.1"></label>
+        </div>
+        <svg id="horizontal-svg" viewBox="0 0 300 300" width="100%" height="220" aria-label="Ilustração horizontal"></svg>
+      </section>
+    </div>
+    <footer class="modal-footer">
+      <button type="button" class="btn" data-role="apply">Aplicar ao formulário</button>
+    </footer>
+  </div>
+  <div class="modal-backdrop" data-role="close" aria-hidden="true"></div>
+</div>
+{% block scripts %}
+{{ super() }}
+<script defer src="{{ url_for('static', filename='js/projects.js') }}?v=20251005"></script>
+{% endblock %}
 {% endblock %}

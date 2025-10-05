@@ -51,6 +51,7 @@ A stack principal inclui **Flask 3**, **SQLAlchemy/Alembic**, **Jinja2**, **NumP
   - `Antenna`: cadastro de antenas + relacionamentos com padrÃµes (`AntennaPattern`) e projetos (`ProjectAntenna`).
   - `AntennaPattern`: padrÃµes elementares (HRP/VRP) com `metadata_json` e filhos `AntennaPatternPoint` (pontos Ã¢ngulo/amplitude). MÃ©todo `replace_points` recria a sÃ©rie de pontos de forma deduplicada e ordenada.
   - `AntennaPatternPoint`: tabela ponto a ponto (Ã¢ngulo, amplitude linear) com constraint Ãºnica `(pattern_id, angle_deg)`.
+  - `Cable`: catÃ¡logo de cabos alimentadores com coeficiente de perda (`attenuation_db_per_100m`), bitola (`size_inch`), fabricante e notas. Projetos referenciam o cadastro via `cable_id`, mantendo `cable_type` apenas para compatibilidade retroativa.
   - `Project`: projeto de composiÃ§Ã£o. ContÃ©m parÃ¢metros verticais/horizontais, metadados de sistema, relaÃ§Ãµes com antenas (`ProjectAntenna`) e exportaÃ§Ãµes (`ProjectExport`).
   - `ProjectAntenna`: ligaÃ§Ãµes N:N entre projetos e antenas (posiÃ§Ã£o no array, espaÃ§amento, fase, amplitude).
   - `ProjectExport`: histÃ³rico de exportaÃ§Ãµes (caminho `PAT/PRN/PDF`, metadados ERP, timestamp).
@@ -169,8 +170,42 @@ Cada migraÃ§Ã£o Ã© encadeada; `flask db upgrade` aplica toda a sequÃªnci
 ---
 
 ## 7. ConclusÃ£o
-
+f1
 Este projeto combina uma arquitetura Flask modular com cÃ¡lculos especializados para RF, geraÃ§Ã£o de relatÃ³rios e suporte inteligente por IA. A organizaÃ§Ã£o detalhada em modelos, serviÃ§os e camadas de apresentaÃ§Ã£o facilita manutenÃ§Ã£o e expansÃ£o. Este documento, aliado ao `proc.md`, deve ser mantido atualizado a cada alteraÃ§Ã£o estrutural significativa para garantir rastreabilidade e alinhamento entre cÃ³digo e operaÃ§Ã£o.
 - Use o comando `flask rebuild-knowledge --source docs` para indexar/atualizar os datasheets. Caso o modelo de embeddings exija autenticaÃ§Ã£o, defina `HUGGINGFACEHUB_API_TOKEN` (ou equivalente) antes de rodar o comando.
 
-\n---\n\n## 8. Atualizacoes Recentes\n\n- Painel admin/data modernizado: helpers _titleize, _truncate e _format_cell_value melhoram formatacao, adicionam contadores e evitam conflitos de nomes com metodos nativos do dict.\n- Exportadores PAT/PRN/PDF recebem parametro highlight para marcar o ponto de horizonte no VRP e usam _safe_float para persistir metricas sem NaN no PostgreSQL.\n- Ambiente virtual ajustado apos migracao: pyvenv.cfg aponta para C:\\Users\\iltom\\AppData\\Local\\Programs\\Python\\Python313 e foi criado wrapper local pip.cmd para delegar python -m pip dentro da venv, prevenindo uso acidental do pip global.\n
+\n---\n\n## 8. Atualizacoes Recentes\n\n- Painel admin/data modernizado: helpers _titleize, _truncate e _format_cell_value melhoram formatacao, adicionam contadores e evitam conflitos de nomes com metodos nativos do dict.\n- Exportadores PAT/PRN/PDF recebem parametro highlight para marcar o ponto de horizonte no VRP e usam _safe_float para persistir metricas sem NaN no PostgreSQL.\n- Ambiente virtual ajustado apos migracao: pyvenv.cfg aponta para C:\\Users\\iltom\\AppData\\Local\\Programs\\Python\\Python313 e foi criado wrapper local pip.cmd para delegar python -m pip dentro da venv, prevenindo uso acidental do pip global.\n- Cadastro de cabos adicionado: tabela `cabos`, formulario administrativo dedicado e selecao guiada no projeto (drop-down) alimentam os calculos de perdas sem depender de valores digitados manualmente.\n
+
+
+## 9. Atualizacoes: Cabos, Antenas, Composicao Visual e Relatorios
+
+- Cabos (atenuacao por curva):
+  - Removido campo fixo `attenuation_db_per_100m`. Agora a perda do cabo usa a curva `attenuation_db_per_100m_curve` (JSON) com interpolacao linear por frequencia. Fallback mantem aproximacao anterior somente quando a curva nao existir.
+  - Importador por datasheet (admin) com IA Gemini: extrai metadados do datasheet e pre-preenche o formulario. O JSON de curva pode ser revisado manualmente antes de salvar.
+
+- Antenas (metadados + ganho por frequencia):
+  - Novos campos em `Antenna`: `manufacturer` (padrao "EFTX Broadcast & Telecom"), `datasheet_path`, `gain_table` (JSON de ganho em dBd por MHz), `category` (TV, FM, Microondas, Telecom) e `thumbnail_path`.
+  - Importador por datasheet (admin) com IA Gemini: extrai metadados gerais (nao le tabelas de diagrama). Tenta capturar a primeira imagem do PDF como thumbnail, salvando em `exports/uploads/antennas/thumbs/` e preenchendo `thumbnail_path`.
+  - Portfolio publico reorganizado por categoria e exibindo thumbnail.
+
+- Composicao visual (UX do projeto):
+  - Modal "Configurar composicao (visual)" com ilustracoes SVG responsivas:
+    - Vertical: retangulos vermelho claro empilhados, cota centro-a-centro com "Δv = X m" e seta de tilt partindo do centro do sistema.
+    - Horizontal: anel do arranjo com rotulo de raio fisico `R = s·N/(2π)` e angulo em frente de cada elemento conforme a posicao `i*(360/N)+i*step`.
+  - Os valores do modal refletem exatamente os inputs; ao aplicar, os campos do formulario recebem os valores.
+
+- Exportacao e relatorio PDF:
+  - As imagens de "Composicao Vertical" e "Composicao Horizontal" sao salvas por export em `exports/<project_id>/<timestamp>/` e inseridas no PDF.
+  - Nome do PDF usa o nome do projeto (slug), em vez de um nome fixo.
+  - Layout do PDF ajustado: titulos acima dos graficos (padroes HRP polar e VRP plano, e ilustracoes de composicao) e dimensoes ampliadas para melhor leitura.
+  - Ganho estimado calibrado por frequencia: se a antena tiver `gain_table` (dBd por MHz), o ganho do arranjo e ajustado por `Δ(dBi)` relativo ao ganho nominal, refletindo "Ganho calibrado" no relatorio e na tela de detalhes do projeto.
+
+- Rotas e UI complementares:
+  - `POST /admin/cables/parse-datasheet`: extrai dados do cabo e curva de atenuacao.
+  - `POST /admin/antennas/parse-datasheet`: extrai metadados da antena e opcionalmente um thumbnail.
+  - `GET /projects/<id>/asset/<export_id>/<name>`: serve imagens de composicao inline ou para download (`?download=1`).
+  - Pagina publica `/` agora agrupa antenas por categoria e exibe thumbnails via `public.antenna_thumb` (servidor seguro de imagens do EXPORT_ROOT).
+
+Notas:
+- As integracoes com IA usam `GEMINI_API_KEY` e respeitam limites de conteudo. Caso nao haja texto extraivel no PDF, a extracao pode ser parcial.
+- As figuras e PDFs sao criados sob `EXPORT_ROOT` e o servico garante permissoes de escrita adequadas para `www-data`.

@@ -76,7 +76,72 @@ class ExportPaths:
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.pat = self.base_dir / "pattern.pat"
         self.prn = self.base_dir / "pattern.prn"
-        self.pdf = self.base_dir / "relatorio.pdf"
+        # PDF com nome do projeto
+        safe_name = re.sub(r"[^A-Za-z0-9_-]+", "-", project.name).strip("-") or "relatorio"
+        self.pdf = self.base_dir / f"{safe_name}.pdf"
+        # Imagens da composição
+        self.composition_vertical = self.base_dir / "composicao_vertical.png"
+        self.composition_horizontal = self.base_dir / "composicao_horizontal.png"
+
+def _save_vertical_composition(path: Path, v_count: int, v_spacing_m: float, v_tilt_deg: float) -> None:
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
+    fig, ax = plt.subplots(figsize=(4.0, 5.0))
+    ax.set_aspect('equal')
+    ax.axis('off')
+    # stack rectangles
+    count = max(int(v_count or 1), 1)
+    spacing = float(v_spacing_m or 0.0)
+    height = 1.0
+    width = 2.5
+    y0 = 0.0
+    for i in range(count):
+        rect = patches.Rectangle(( -width/2, y0 + i * (height + 0.5)), width, height, linewidth=1, edgecolor='#cc0000', facecolor='#ffcccc')
+        ax.add_patch(rect)
+    # center-to-center dimension if possible
+    if count >= 2:
+        c0 = y0 + height/2
+        c1 = y0 + (height + 0.5) + height/2
+        ax.annotate('', xy=(width/2 + 0.6, c0), xytext=(width/2 + 0.6, c1), arrowprops=dict(arrowstyle='<->', color='#444'))
+        ax.text(width/2 + 0.8, (c0+c1)/2, f"Δv = {spacing:.3f} m", rotation=90, va='center', fontsize=9)
+    # tilt arrow from center
+    tilt = float(v_tilt_deg or 0.0)
+    ax.annotate('', xy=(0.0 + 1.8*np.cos(-np.deg2rad(tilt)), (count/2) * (height + 0.5) + 1.8*np.sin(-np.deg2rad(tilt))),
+                xytext=(0.0, (count/2) * (height + 0.5)), arrowprops=dict(arrowstyle='->', linewidth=2, color='#ff7a00'))
+    ax.text(0.2, (count/2) * (height + 0.5) + 0.2, f"tilt {tilt:.1f}°", color='#ff7a00')
+    # limits
+    ax.set_xlim(-3.5, 4.5)
+    ax.set_ylim(-1.0, (height + 0.5) * max(count, 2) + 1.0)
+    fig.savefig(path, dpi=200, bbox_inches='tight')
+    plt.close(fig)
+
+def _save_horizontal_composition(path: Path, h_count: int, h_spacing_m: float, h_step_deg: float) -> None:
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import matplotlib.patches as patches
+    fig, ax = plt.subplots(figsize=(5.0, 5.0))
+    ax.set_aspect('equal')
+    ax.axis('off')
+    n = max(int(h_count or 1), 1)
+    s = float(h_spacing_m or 0.0)
+    step = float(h_step_deg or 0.0)
+    # radius from spacing: s = 2πR / n  => R = s*n/(2π)
+    Rm = s * n / (2 * np.pi) if n > 0 else 0.0
+    R = 1.8  # draw radius in arbitrary units
+    circ = patches.Circle((0,0), R, fill=False, linestyle='--', color='#8a8a8a')
+    ax.add_patch(circ)
+    ax.text(-0.2, R + 0.2, f"R = {Rm:.3f} m", fontsize=9, color='#555')
+    for i in range(n):
+        ang = np.deg2rad(i * (360.0/n) + i * step)
+        x = R * np.cos(ang); y = R * np.sin(ang)
+        el = patches.Rectangle((x-0.15, y-0.15), 0.3, 0.3, angle=np.rad2deg(ang), edgecolor='#2a74ff', facecolor='#2a74ff')
+        ax.add_patch(el)
+        # angle label slightly outside
+        lx = (R + 0.35) * np.cos(ang); ly = (R + 0.35) * np.sin(ang)
+        ax.text(lx, ly, f"{(i*(360.0/n)+i*step)%360:.0f}°", ha='center', va='center', fontsize=8)
+    ax.set_xlim(-2.6, 2.6); ax.set_ylim(-2.6, 2.6)
+    fig.savefig(path, dpi=200, bbox_inches='tight')
+    plt.close(fig)
 
 
 def _format_value(value: float, suffix: str = "") -> str:
@@ -116,6 +181,41 @@ def vertical_to_full_circle(angles_deg: np.ndarray, values: np.ndarray) -> tuple
     angles = np.concatenate([target, np.arange(181, 360, 1, dtype=float)])
     amp = np.concatenate([interp, mirrored])
     return angles, amp
+
+
+def _interp_dict_num(d: dict, x: float) -> float | None:
+    try:
+        items = sorted((float(k), float(v)) for k, v in d.items() if v is not None)
+    except Exception:
+        return None
+    if not items:
+        return None
+    if len(items) == 1:
+        return items[0][1]
+    # linear interp with extrapolation
+    if x <= items[0][0]:
+        x0, y0 = items[0]
+        x1, y1 = items[1]
+        if x1 == x0:
+            return y0
+        t = (x - x0) / (x1 - x0)
+        return y0 + t * (y1 - y0)
+    if x >= items[-1][0]:
+        x0, y0 = items[-2]
+        x1, y1 = items[-1]
+        if x1 == x0:
+            return y1
+        t = (x - x0) / (x1 - x0)
+        return y0 + t * (y1 - y0)
+    for i in range(len(items) - 1):
+        x0, y0 = items[i]
+        x1, y1 = items[i + 1]
+        if x0 <= x <= x1:
+            if x1 == x0:
+                return y0
+            t = (x - x0) / (x1 - x0)
+            return y0 + t * (y1 - y0)
+    return None
 
 
 def _save_polar_plot(path: Path, angles: np.ndarray, values: np.ndarray, title: str) -> None:
@@ -249,6 +349,13 @@ def _create_pdf_report(
         _save_polar_plot(hrp_img, hrp_angles, hrp_values, "Padrão Horizontal Composto")
         _save_planar_plot(vrp_img, vrp_angles, vrp_values, "Padrão Vertical Composto", highlight=(0.0, horizon_value))
 
+        # Salvar diagramas de composição no diretório do projeto
+        try:
+            _save_vertical_composition(paths.composition_vertical, int(project.v_count or 1), float(project.v_spacing_m or 0.0), float(project.v_tilt_deg or 0.0))
+            _save_horizontal_composition(paths.composition_horizontal, int(project.h_count or 1), float(project.h_spacing_m or 0.0), float(project.h_step_deg or 0.0))
+        except Exception:
+            pass
+
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A4)
         width, height = A4
@@ -299,10 +406,28 @@ def _create_pdf_report(
             y_right -= 13
 
         chart_width = (width - margin * 3) / 2
-        chart_height = 120
+        chart_height = 135
         charts_y = min(y_left, y_right) - 18
-        c.drawImage(ImageReader(str(hrp_img)), margin, charts_y - chart_height, width=chart_width, height=chart_height, preserveAspectRatio=True, mask="auto")
-        c.drawImage(ImageReader(str(vrp_img)), margin * 2 + chart_width, charts_y - chart_height, width=chart_width, height=chart_height, preserveAspectRatio=True, mask="auto")
+        # Títulos dos gráficos de padrão
+        c.setFont("Helvetica-Bold", 11)
+        c.drawCentredString(margin + chart_width / 2, charts_y, "Padrão Horizontal (polar)")
+        c.drawCentredString(margin * 2 + chart_width + chart_width / 2, charts_y, "Padrão Vertical (plano)")
+        c.drawImage(ImageReader(str(hrp_img)), margin, charts_y - chart_height - 12, width=chart_width, height=chart_height, preserveAspectRatio=True, mask="auto")
+        c.drawImage(ImageReader(str(vrp_img)), margin * 2 + chart_width, charts_y - chart_height - 12, width=chart_width, height=chart_height, preserveAspectRatio=True, mask="auto")
+
+        # Segunda linha: diagramas de composição
+        comp_y = charts_y - chart_height - 30
+        comp_h = 135
+        try:
+            # Títulos dos gráficos de composição
+            c.setFont("Helvetica-Bold", 11)
+            c.drawCentredString(margin + chart_width / 2, comp_y, "Composição Vertical (ilustração)")
+            c.drawCentredString(margin * 2 + chart_width + chart_width / 2, comp_y, "Composição Horizontal (ilustração)")
+            c.drawImage(ImageReader(str(paths.composition_vertical)), margin, comp_y - comp_h - 12, width=chart_width, height=comp_h, preserveAspectRatio=True, mask="auto")
+            c.drawImage(ImageReader(str(paths.composition_horizontal)), margin * 2 + chart_width, comp_y - comp_h - 12, width=chart_width, height=comp_h, preserveAspectRatio=True, mask="auto")
+            comp_y = comp_y - comp_h - 12
+        except Exception:
+            pass
 
         dir_hrp = directivity_2d_cut(raw_hrp_angles, raw_hrp_values)
         dir_hrp_db = 10 * np.log10(dir_hrp) if np.isfinite(dir_hrp) else float("nan")
@@ -434,18 +559,27 @@ def generate_project_export(project: Project, export_root: Path) -> tuple[Projec
         "ripple_db": _safe_float(ripple_p2p_db(hrp_angles, hrp_values)),
         "sll_db": _safe_float(sidelobe_level_db(hrp_angles, hrp_values)),
         "peak_angle": _safe_float(peak_angle_deg(hrp_angles, hrp_values)),
-        "gain_dbi": _safe_float(
-            estimate_gain_dbi(
-                hpbw_deg(hrp_angles, hrp_values),
-                hpbw_deg(vrp_angles, vrp_values),
-            )
-        ),
+        "gain_dbi": _safe_float(estimate_gain_dbi(hpbw_deg(hrp_angles, hrp_values), hpbw_deg(vrp_angles, vrp_values))),
         "directivity_db": _safe_float(
             10 * np.log10(directivity_2d_cut(hrp_angles, hrp_values))
             if np.any(hrp_values)
             else None
         ),
     }
+    # Calibração do ganho com tabela de ganho da antena (dBd) convertida para dBi
+    try:
+        base_nominal_dbi = float((project.antenna.nominal_gain_dbd or 0.0) + 2.15)
+    except Exception:
+        base_nominal_dbi = 0.0
+    table = getattr(project.antenna, "gain_table", None)
+    if isinstance(table, dict):
+        table_dbd = _interp_dict_num(table, float(project.frequency_mhz))
+        if table_dbd is not None:
+            table_dbi = float(table_dbd) + 2.15
+            if metrics["gain_dbi"] is not None:
+                metrics["gain_dbi"] = float(metrics["gain_dbi"]) + (table_dbi - base_nominal_dbi)
+            else:
+                metrics["gain_dbi"] = table_dbi
     horizon_idx = int(np.argmin(np.abs(vrp_angles))) if vrp_angles.size else 0
     horizon_value = _safe_float(vrp_values[horizon_idx]) if vrp_values.size else None
 

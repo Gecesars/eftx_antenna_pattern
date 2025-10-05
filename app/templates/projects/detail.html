@@ -2,7 +2,9 @@
 {% block content %}
 <section class="project-header">
     <h1>{{ project.name }}</h1>
-    <p>Antena: {{ project.antenna.name }} · Frequencia: {{ "%.2f"|format(project.frequency_mhz) }} MHz · Potencia: {{ "%.1f"|format(project.tx_power_w) }} W</p>
+    <p>Antena: {{ project.antenna.name }} · Frequencia: {{ "%.2f"|format(project.frequency_mhz) }} MHz · Potencia: {{ "%.1f"|format(project.tx_power_w) }} W
+    {% if calibrated_gain is not none %} · Ganho calibrado: {{ '%.2f'|format(calibrated_gain) }} dBi{% endif %}
+    </p>
     <div class="header-actions">
         <a class="btn" href="{{ url_for('projects.edit', project_id=project.id) }}">Editar</a>
         <a class="btn-primary" href="{{ url_for('projects.export', project_id=project.id) }}">Gerar exportacoes</a>
@@ -43,6 +45,22 @@
             </header>
             <p>PDF + PAT + PRN em um único pacote para facilitar o envio.</p>
             <a class="export-action" href="{{ latest_files['bundle'] }}">Baixar pacote</a>
+        </article>
+    </div>
+    <div class="export-grid">
+        <article class="export-card">
+            <header><h3>Composição Vertical</h3></header>
+            {% if latest_files.get('comp_v') %}
+            <img src="{{ latest_files['comp_v'] }}" alt="Composição vertical" style="max-width:100%;height:auto"/>
+            <p><a class="export-action" href="{{ latest_files['comp_v'] }}?download=1">Baixar PNG</a></p>
+            {% endif %}
+        </article>
+        <article class="export-card">
+            <header><h3>Composição Horizontal</h3></header>
+            {% if latest_files.get('comp_h') %}
+            <img src="{{ latest_files['comp_h'] }}" alt="Composição horizontal" style="max-width:100%;height:auto"/>
+            <p><a class="export-action" href="{{ latest_files['comp_h'] }}?download=1">Baixar PNG</a></p>
+            {% endif %}
         </article>
     </div>
 </section>

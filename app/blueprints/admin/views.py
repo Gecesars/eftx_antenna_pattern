@@ -8,16 +8,18 @@ from functools import wraps
 from uuid import UUID
 
 import numpy as np
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for, jsonify
 from flask_login import current_user, login_required
 from flask_wtf.csrf import generate_csrf
 from sqlalchemy.inspection import inspect
 
 from ...extensions import db
-from ...forms.admin import AntennaForm, PatternUploadForm
-from ...models import Antenna, AntennaPattern, AntennaPatternPoint, PatternType, Project, ProjectAntenna, ProjectExport, User
+from ...forms.admin import AntennaForm, CableForm, PatternUploadForm
+from ...models import Antenna, AntennaPattern, AntennaPatternPoint, Cable, PatternType, Project, ProjectAntenna, ProjectExport, User
 from ...services.pattern_composer import resample_pattern, resample_vertical
 from ...services.pattern_parser import parse_pattern_bytes
+from ...services.cable_extractor import extract_cable_from_datasheet
+from ...services.antenna_extractor import extract_antenna_from_datasheet
 from ...services.visuals import generate_pattern_previews
 
 
@@ -30,6 +32,7 @@ MANAGED_MODELS: dict[str, type] = {
     "patterns": AntennaPattern,
     "projects": Project,
     "exports": ProjectExport,
+    "cabos": Cable,
 }
 
 
@@ -60,6 +63,13 @@ def antennas_list():
     return render_template("admin/antennas_list.html", antennas=antennas)
 
 
+@admin_bp.route("/cables")
+@admin_required
+def cables_list():
+    cables = Cable.query.order_by(Cable.display_name).all()
+    return render_template("admin/cables_list.html", cables=cables)
+
+
 @admin_bp.route("/antennas/new", methods=["GET", "POST"])
 @admin_required
 def antennas_create():
@@ -73,12 +83,72 @@ def antennas_create():
             polarization=form.polarization.data or None,
             frequency_min_mhz=form.frequency_min_mhz.data or None,
             frequency_max_mhz=form.frequency_max_mhz.data or None,
+            manufacturer=(form.manufacturer.data or "EFTX Broadcast & Telecom"),
+            datasheet_path=form.datasheet_path.data or None,
+            category=form.category.data or None,
+            thumbnail_path=form.thumbnail_path.data or None,
         )
+        gain_raw = (form.gain_table.data or "").strip()
+        if gain_raw:
+            try:
+                antenna.gain_table = json.loads(gain_raw)
+            except Exception:
+                flash("JSON de tabela de ganho inválido. Valor ignorado.", "warning")
         db.session.add(antenna)
         db.session.commit()
         flash("Antena criada.", "success")
         return redirect(url_for("admin.antennas_list"))
     return render_template("admin/antenna_form.html", form=form)
+
+
+@admin_bp.route("/cables/new", methods=["GET", "POST"])
+@admin_required
+def cables_create():
+    form = CableForm()
+    if form.validate_on_submit():
+        cable = Cable(
+            display_name=form.display_name.data.strip(),
+            model_code=form.model_code.data.strip(),
+            size_inch=(form.size_inch.data or None),
+            impedance_ohms=form.impedance_ohms.data or None,
+            manufacturer=(form.manufacturer.data or None),
+            notes=form.notes.data or None,
+            datasheet_path=(form.datasheet_path.data or None),
+            frequency_min_mhz=form.frequency_min_mhz.data or None,
+            frequency_max_mhz=form.frequency_max_mhz.data or None,
+            velocity_factor=form.velocity_factor.data or None,
+            max_power_w=form.max_power_w.data or None,
+            min_bend_radius_mm=form.min_bend_radius_mm.data or None,
+            outer_diameter_mm=form.outer_diameter_mm.data or None,
+            weight_kg_per_km=form.weight_kg_per_km.data or None,
+            vswr_max=form.vswr_max.data or None,
+            shielding_db=form.shielding_db.data or None,
+            temperature_min_c=form.temperature_min_c.data or None,
+            temperature_max_c=form.temperature_max_c.data or None,
+            conductor_material=(form.conductor_material.data or None),
+            dielectric_material=(form.dielectric_material.data or None),
+            jacket_material=(form.jacket_material.data or None),
+            shielding_type=(form.shielding_type.data or None),
+            conductor_diameter_mm=form.conductor_diameter_mm.data or None,
+            dielectric_diameter_mm=form.dielectric_diameter_mm.data or None,
+        )
+        # curva de atenuacao (JSON opcional)
+        curve_raw = (form.attenuation_db_per_100m_curve.data or "").strip()
+        if curve_raw:
+            try:
+                cable.attenuation_db_per_100m_curve = json.loads(curve_raw)
+            except Exception:
+                flash("Curva de atenuacao em JSON invalida. Valor ignorado.", "warning")
+        db.session.add(cable)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            flash("Nao foi possivel salvar o cabo. Verifique se o codigo ja esta em uso.", "danger")
+            return render_template("admin/cable_form.html", form=form)
+        flash("Cabo cadastrado.", "success")
+        return redirect(url_for("admin.cables_list"))
+    return render_template("admin/cable_form.html", form=form)
 
 
 @admin_bp.route("/antennas/<uuid:antenna_id>/edit", methods=["GET", "POST"])
@@ -94,10 +164,86 @@ def antennas_edit(antenna_id):
         antenna.polarization = form.polarization.data or None
         antenna.frequency_min_mhz = form.frequency_min_mhz.data or None
         antenna.frequency_max_mhz = form.frequency_max_mhz.data or None
+        antenna.manufacturer = (form.manufacturer.data or "EFTX Broadcast & Telecom")
+        antenna.datasheet_path = form.datasheet_path.data or None
+        antenna.category = form.category.data or None
+        antenna.thumbnail_path = form.thumbnail_path.data or None
+        gain_raw = (form.gain_table.data or "").strip()
+        if gain_raw:
+            try:
+                antenna.gain_table = json.loads(gain_raw)
+            except Exception:
+                flash("JSON de tabela de ganho inválido. Valor mantido anterior.", "warning")
         db.session.commit()
         flash("Antena atualizada.", "success")
         return redirect(url_for("admin.antennas_list"))
+    # Preencher textarea com JSON formatado
+    if request.method == "GET" and antenna.gain_table:
+        try:
+            form.gain_table.data = json.dumps(antenna.gain_table, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
     return render_template("admin/antenna_form.html", form=form, antenna=antenna)
+
+
+@admin_bp.route("/cables/<uuid:cable_id>/edit", methods=["GET", "POST"])
+@admin_required
+def cables_edit(cable_id):
+    cable = Cable.query.get_or_404(cable_id)
+    form = CableForm(obj=cable)
+    if form.validate_on_submit():
+        cable.display_name = form.display_name.data.strip()
+        cable.model_code = form.model_code.data.strip()
+        cable.size_inch = form.size_inch.data or None
+        cable.impedance_ohms = form.impedance_ohms.data or None
+        cable.manufacturer = form.manufacturer.data or None
+        cable.notes = form.notes.data or None
+        cable.datasheet_path = form.datasheet_path.data or None
+        cable.frequency_min_mhz = form.frequency_min_mhz.data or None
+        cable.frequency_max_mhz = form.frequency_max_mhz.data or None
+        cable.velocity_factor = form.velocity_factor.data or None
+        cable.max_power_w = form.max_power_w.data or None
+        cable.min_bend_radius_mm = form.min_bend_radius_mm.data or None
+        cable.outer_diameter_mm = form.outer_diameter_mm.data or None
+        cable.weight_kg_per_km = form.weight_kg_per_km.data or None
+        cable.vswr_max = form.vswr_max.data or None
+        cable.shielding_db = form.shielding_db.data or None
+        cable.temperature_min_c = form.temperature_min_c.data or None
+        cable.temperature_max_c = form.temperature_max_c.data or None
+        cable.conductor_material = form.conductor_material.data or None
+        cable.dielectric_material = form.dielectric_material.data or None
+        cable.jacket_material = form.jacket_material.data or None
+        cable.shielding_type = form.shielding_type.data or None
+        cable.conductor_diameter_mm = form.conductor_diameter_mm.data or None
+        cable.dielectric_diameter_mm = form.dielectric_diameter_mm.data or None
+        curve_raw = (form.attenuation_db_per_100m_curve.data or "").strip()
+        if curve_raw:
+            try:
+                cable.attenuation_db_per_100m_curve = json.loads(curve_raw)
+            except Exception:
+                flash("Curva de atenuacao em JSON invalida. Valor mantido anterior.", "warning")
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            flash("Nao foi possivel atualizar o cabo. Revise os dados informados.", "danger")
+            return render_template("admin/cable_form.html", form=form, cable=cable)
+        flash("Cabo atualizado.", "success")
+        return redirect(url_for("admin.cables_list"))
+    return render_template("admin/cable_form.html", form=form, cable=cable)
+
+
+@admin_bp.route("/cables/parse-datasheet", methods=["POST"])
+@admin_required
+def cables_parse_datasheet():
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"error": "Arquivo nao enviado."}), 400
+    data = extract_cable_from_datasheet(file)
+    status = 200 if "error" not in data else 500
+    # inclui token CSRF para formularios dinâmicos
+    data["csrf_token"] = generate_csrf()
+    return jsonify(data), status
 
 
 @admin_bp.route("/antennas/<uuid:antenna_id>/patterns", methods=["GET", "POST"])
@@ -405,6 +551,13 @@ def data_edit(model_name, record_id):
         record=record,
         csrf_token=generate_csrf(),
     )
-
-
-
+@admin_bp.route("/antennas/parse-datasheet", methods=["POST"])
+@admin_required
+def antennas_parse_datasheet():
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"error": "Arquivo nao enviado."}), 400
+    data = extract_antenna_from_datasheet(file)
+    status = 200 if "error" not in data else 500
+    data["csrf_token"] = generate_csrf()
+    return jsonify(data), status
