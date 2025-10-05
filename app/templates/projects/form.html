@@ -110,10 +110,10 @@
             <small class="help">Número de elementos distribuídos azimutalmente.</small>
             {% for error in form.h_count.errors %}<span class="error">{{ error }}</span>{% endfor %}
         </div>
-        <div class="form-field" title="Espaçamento angular entre painéis">
+        <div class="form-field" title="Raio do arranjo em metros (distância da face do painel ao centro)">
             <label>{{ form.h_spacing_m.label.text }}</label>
             {{ form.h_spacing_m(step='0.01') }}
-            <small class="help">Distância linear entre elementos (m) no anel.</small>
+            <small class="help">Raio do anel (m) medido da face do painel ao centro.</small>
             {% for error in form.h_spacing_m.errors %}<span class="error">{{ error }}</span>{% endfor %}
         </div>
         <div class="form-field" title="Fase progressiva horizontal">

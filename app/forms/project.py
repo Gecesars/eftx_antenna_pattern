@@ -29,7 +29,7 @@ class ProjectForm(FlaskForm):
     )
 
     h_count = IntegerField("Elementos horizontais", validators=[DataRequired(), NumberRange(min=1, max=36)])
-    h_spacing_m = FloatField("Espaçamento horizontal (m)", validators=[Optional(), NumberRange(min=0)])
+    h_spacing_m = FloatField("Raio do arranjo (m)", validators=[Optional(), NumberRange(min=0)])
     h_beta_deg = FloatField("Beta horizontal (°)", validators=[Optional()])
     h_step_deg = FloatField("Passo horizontal (°)", validators=[Optional()])
     h_level_amp = FloatField("Nível horizontal", validators=[Optional(), NumberRange(min=0)])

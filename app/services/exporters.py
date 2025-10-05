@@ -17,6 +17,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
+from flask import current_app
 from reportlab.platypus import Table, TableStyle
 from reportlab.lib.utils import ImageReader
 
@@ -366,8 +367,14 @@ def _create_pdf_report(
         try:
             _save_vertical_composition(paths.composition_vertical, int(project.v_count or 1), float(project.v_spacing_m or 0.0), float(project.v_tilt_deg or 0.0))
             _save_horizontal_composition(paths.composition_horizontal, int(project.h_count or 1), float(project.h_spacing_m or 0.0), float(project.h_step_deg or 0.0))
-        except Exception:
-            pass
+        except Exception as exc:
+            try:
+                current_app.logger.warning("export.composition_image_failed", extra={
+                    "project_id": str(project.id),
+                    "error": str(exc),
+                })
+            except Exception:
+                pass
 
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A4)
@@ -376,6 +383,8 @@ def _create_pdf_report(
 
         c.setFont("Helvetica-Bold", 16)
         c.drawCentredString(width / 2, height - margin, f"Relatório Técnico - {project.name}")
+        c.setFont("Helvetica", 8)
+        c.drawRightString(width - margin, height - margin - 14, f"Processado em: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
         c.setFont("Helvetica", 9)
 
         summary_left = [
@@ -419,8 +428,8 @@ def _create_pdf_report(
             y_right -= 13
 
         chart_width = (width - margin * 3) / 2
-        chart_height = 135
-        charts_y = min(y_left, y_right) - 18
+        chart_height = 120
+        charts_y = min(y_left, y_right) - 22
         # Títulos dos gráficos de padrão
         c.setFont("Helvetica-Bold", 11)
         c.drawCentredString(margin + chart_width / 2, charts_y, "Padrão Horizontal (polar)")
@@ -430,7 +439,7 @@ def _create_pdf_report(
 
         # Segunda linha: diagramas de composição
         comp_y = charts_y - chart_height - 30
-        comp_h = 135
+        comp_h = 120
         try:
             # Títulos dos gráficos de composição
             c.setFont("Helvetica-Bold", 11)
@@ -439,8 +448,14 @@ def _create_pdf_report(
             c.drawImage(ImageReader(str(paths.composition_vertical)), margin, comp_y - comp_h - 12, width=chart_width, height=comp_h, preserveAspectRatio=True, mask="auto")
             c.drawImage(ImageReader(str(paths.composition_horizontal)), margin * 2 + chart_width, comp_y - comp_h - 12, width=chart_width, height=comp_h, preserveAspectRatio=True, mask="auto")
             comp_y = comp_y - comp_h - 12
-        except Exception:
-            pass
+        except Exception as exc:
+            try:
+                current_app.logger.warning("export.embed_composition_failed", extra={
+                    "project_id": str(project.id),
+                    "error": str(exc),
+                })
+            except Exception:
+                pass
 
         dir_hrp = directivity_2d_cut(raw_hrp_angles, raw_hrp_values)
         dir_hrp_db = 10 * np.log10(dir_hrp) if np.isfinite(dir_hrp) else float("nan")

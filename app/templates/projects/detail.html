@@ -47,22 +47,7 @@
             <a class="export-action" href="{{ latest_files['bundle'] }}">Baixar pacote</a>
         </article>
     </div>
-    <div class="export-grid">
-        <article class="export-card">
-            <header><h3>Composição Vertical</h3></header>
-            {% if latest_files.get('comp_v') %}
-            <img src="{{ latest_files['comp_v'] }}" alt="Composição vertical" style="max-width:100%;height:auto"/>
-            <p><a class="export-action" href="{{ latest_files['comp_v'] }}?download=1">Baixar PNG</a></p>
-            {% endif %}
-        </article>
-        <article class="export-card">
-            <header><h3>Composição Horizontal</h3></header>
-            {% if latest_files.get('comp_h') %}
-            <img src="{{ latest_files['comp_h'] }}" alt="Composição horizontal" style="max-width:100%;height:auto"/>
-            <p><a class="export-action" href="{{ latest_files['comp_h'] }}?download=1">Baixar PNG</a></p>
-            {% endif %}
-        </article>
-    </div>
+    
 </section>
 {% endif %}
 
