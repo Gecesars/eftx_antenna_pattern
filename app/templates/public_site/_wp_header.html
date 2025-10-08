@@ -1,0 +1,93 @@
+<div class="linha-total">
+  <div class="linha">
+    {% if company_info.phone %}
+      <div class="item"><i class="fas fa-phone-square"></i> {{ company_info.phone }}</div>
+    {% endif %}
+    {% if company_info.email %}
+      <div class="item"><i class="fas fa-envelope-open-text"></i> {{ company_info.email }}</div>
+    {% endif %}
+    <div class="topo-chat">
+      {% if company_info.whatsapp %}
+        {% set wa_clean = company_info.whatsapp|replace('+','')|replace(' ','')|replace('-','')|replace('(','')|replace(')','') %}
+        <a target="_blank" href="https://api.whatsapp.com/send?phone={{ wa_clean }}">
+          <div class="item whats"><i class="fab fa-whatsapp"></i> Atendimento pelo Whatsapp</div>
+        </a>
+      {% endif %}
+      {% if company_info.email %}
+        <a target="_blank" href="mailto:{{ company_info.email }}">
+          <div class="item online"><i class="fas fa-comments"></i> Atendimento Online</div>
+        </a>
+      {% endif %}
+    </div>
+    {% if company_social_links %}
+    <div class="social-top">
+      {% for social in company_social_links %}
+        {% set icon_map = {
+          'instagram': 'fa-brands fa-instagram',
+          'facebook': 'fa-brands fa-facebook',
+          'linkedin': 'fa-brands fa-linkedin',
+          'youtube': 'fa-brands fa-youtube',
+          'x': 'fa-brands fa-x-twitter'
+        } %}
+        {% set icon = icon_map.get(social.network, 'fa-solid fa-globe') %}
+        <a href="{{ social.url }}" target="_blank" rel="noopener"><i class="{{ icon }}"></i></a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="topo-total">
+  <div class="topo">
+    <div class="logo">
+      <a href="{{ url_for('public_site.home') }}" title="EFTX Telecom">
+        <img src="{{ url_for('public_site.site_asset', filename='IMA/logo-site.png') }}" alt="EFTX Telecom" />
+      </a>
+    </div>
+    <div class="menu">
+      <button class="menu-resp" type="button" data-menu-toggle aria-expanded="false" aria-label="Alternar navegação">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+      <div class="menu menu-hide" data-menu>
+        <ul>
+          <li><a href="{{ url_for('public_site.home') }}#inicio">Home</a></li>
+          <li><a href="{{ url_for('public_site.home') }}#sobre">Empresa</a></li>
+          <li class="menu-item-has-children">
+            <a href="{{ url_for('public_site.home') }}#solucoes">Serviços</a>
+            <ul class="sub-menu">
+              <li><a href="{{ url_for('public_site.home') }}#solucoes">Planejamento & engenharia</a></li>
+              <li><a href="{{ url_for('public_site.home') }}#processo">Integração em campo</a></li>
+              <li><a href="{{ url_for('public_site.home') }}#insights">Materiais técnicos</a></li>
+              <li><a href="{{ url_for('public_site.contact') }}">Suporte contínuo</a></li>
+            </ul>
+          </li>
+          <li class="menu-item-has-children">
+            <a href="{{ url_for('public_site.products') }}">Produtos</a>
+            <ul class="sub-menu">
+              <li><a href="{{ url_for('public_site.products') }}">Catálogo completo</a></li>
+              <li><a href="{{ url_for('public_site.products') }}#categoria-fm">Linha FM</a></li>
+              <li><a href="{{ url_for('public_site.products') }}#categoria-uhf">Linha UHF</a></li>
+              <li><a href="{{ url_for('public_site.products') }}#categoria-vhf">Linha VHF</a></li>
+              <li><a href="{{ url_for('public_site.products') }}#categoria-acessorios">Acessórios</a></li>
+            </ul>
+          </li>
+          <li><a href="{{ url_for('public_site.downloads') }}">Downloads</a></li>
+          <li><a href="{{ url_for('public_site.home') }}#insights">Insights</a></li>
+          <li><a href="{{ url_for('public_site.contact') }}">Contato</a></li>
+          <li class="menu-item-area-cliente">
+            {% if current_user.is_authenticated %}
+              <a href="{{ url_for('projects.dashboard') }}">Área do Cliente</a>
+            {% else %}
+              <a href="{{ url_for('auth.login') }}">Área do Cliente</a>
+            {% endif %}
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div class="BNDES">
+      <a href="https://www.cartaobndes.gov.br/cartaobndes/PaginasCartao/Catalogo.asp?CTRL=667652673&acao=DF&Cod=3063234" target="_blank" rel="noopener">
+        <img src="{{ url_for('public_site.site_asset', filename='IMA/bndes.png') }}" alt="Cartão BNDES" />
+      </a>
+    </div>
+  </div>
+</div>

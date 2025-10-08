@@ -1,10 +1,13 @@
-﻿from flask import Flask
+# -*- coding: utf-8 -*-
+from flask import Flask
 
 from .auth.views import auth_bp
 from .admin.views import admin_bp
 from .projects.views import projects_bp
 from .api.views import api_bp
 from .public.views import public_bp
+from .integrations_whatsapp.views import integrations_whatsapp_bp
+from .public_site.views import public_site_bp
 
 
 BLUEPRINTS = (
@@ -13,6 +16,8 @@ BLUEPRINTS = (
     projects_bp,
     api_bp,
     public_bp,
+    integrations_whatsapp_bp,
+    public_site_bp,
 )
 
 

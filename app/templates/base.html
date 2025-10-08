@@ -1,4 +1,5 @@
 {% set title = title or "EFTX Antenna Composer" %}
+{% set blueprint = request.blueprint or '' %}
 <!doctype html>
 <html lang="pt-br">
 <head>
@@ -6,111 +7,129 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ title }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    <script defer src="{{ url_for('static', filename='js/designer.js') }}"></script>
-    <script defer src="{{ url_for('static', filename='js/forms.js') }}"></script>
-    <script defer src="{{ url_for('static', filename='js/assistant.js') }}"></script>
-</head>
-<body class="{% if current_user.is_authenticated %}app-auth{% else %}app-public{% endif %}">
-<header class="topbar">
-    <div class="brand">
-        <a href="{{ url_for('public.home') }}" class="brand-logo">
-            <img src="{{ url_for('static', filename='img/eftx-logo.svg') }}" alt="EFTX logo">
-        </a>
-        <span>{{ brand.tagline }}</span>
-    </div>
-    <div class="topbar-actions">
-        {% if current_user.is_authenticated %}
-            <span class="user-chip">{{ current_user.full_name }}</span>
-            <a class="logout-link" href="{{ url_for('auth.logout') }}">Sair</a>
-        {% else %}
-            <a href="{{ url_for('auth.login') }}">Entrar</a>
-            <a class="btn-primary" href="{{ url_for('auth.register') }}">Cadastro</a>
-        {% endif %}
-    </div>
-</header>
-<div class="app-shell">
-    {% if current_user.is_authenticated %}
-    {% set blueprint = request.blueprint or '' %}
-    <aside class="sidebar">
-        <nav class="sidebar-nav">
-            <a class="sidebar-link{% if blueprint == 'projects' %} active{% endif %}" href="{{ url_for('projects.dashboard') }}">
-                <span>Projetos</span>
-            </a>
-            <a class="sidebar-link{% if request.endpoint == 'projects.create' %} active{% endif %}" href="{{ url_for('projects.create') }}">
-                <span>Novo projeto</span>
-            </a>
-            <a class="sidebar-link{% if blueprint == 'public' %} active{% endif %}" href="{{ url_for('public.home') }}#portfolio">
-                <span>Antenas disponiveis</span>
-            </a>
-            {% if current_user.is_admin %}
-            <a class="sidebar-link{% if blueprint == 'admin' %} active{% endif %}" href="{{ url_for('admin.dashboard') }}">
-                <span>Administracao</span>
-            </a>
-            <a class="sidebar-link{% if request.endpoint and request.endpoint.startswith('admin.data') %} active{% endif %}" href="{{ url_for('admin.data_index') }}">
-                <span>Gestor de dados</span>
-            </a>
-            {% endif %}
-            <a class="sidebar-link" href="{{ url_for('projects.dashboard') }}#relatorios">
-                <span>Relatorios</span>
-            </a>
-        </nav>
-        <div class="sidebar-footer">
-            <small>EFTX Telecom</small>
-        </div>
-    </aside>
+    <link rel="icon" type="image/png" href="{{ url_for('public_site.site_asset', filename='IMA/favicon.png') }}">
+    {% if blueprint == 'public_site' %}
+        <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.css') }}">
+        {% block head_public_meta %}{% endblock %}
+    {% else %}
+        <script defer src="{{ url_for('static', filename='js/designer.js') }}"></script>
+        <script defer src="{{ url_for('static', filename='js/forms.js') }}"></script>
+        <script defer src="{{ url_for('static', filename='js/assistant.js') }}"></script>
     {% endif %}
-    <main class="workspace">
-        {% with messages = get_flashed_messages(with_categories=True) %}
-        {% if messages %}
-            <ul class="flash">
-                {% for category, message in messages %}
-                    <li class="{{ category }}">{{ message }}</li>
-                {% endfor %}
-            </ul>
-        {% endif %}
-        {% endwith %}
-        {% block content %}{% endblock %}
+    {% block head_extra %}{% endblock %}
+</head>
+<body class="{% if blueprint == 'public_site' %}app-public wp-site{% elif current_user.is_authenticated %}app-auth{% else %}app-public{% endif %}">
+{% if blueprint == 'public_site' %}
+    {% include 'public_site/_wp_header.html' %}
+    <main class="workspace wp-workspace">
+        <div class="public-site">
+            {% block public_content %}{% endblock %}
+        </div>
     </main>
-</div>
-<footer class="footer">
-    <p>&copy; {{ 2025 }} EFTX Telecom</p>
-</footer>
-{% if current_user.is_authenticated %}
-<div
-    class="assistant-panel"
-    id="assistant-panel"
-    data-fetch-url="{{ url_for('api.get_assistant_conversation') }}"
-    data-post-url="{{ url_for('api.post_assistant_message') }}"
-    aria-live="polite"
->
-    <header class="assistant-header">
-        <div class="assistant-avatar" aria-hidden="true">AI</div>
-        <div class="assistant-title">
-            <strong>Assistente EFTX</strong>
-            <span>Orientacoes inteligentes sobre o app</span>
+    {% include 'public_site/_wp_footer.html' %}
+    <script defer src="{{ url_for('static', filename='js/public_site.js') }}"></script>
+{% else %}
+    <header class="topbar">
+        <div class="brand">
+            <a href="{{ url_for('public.home') }}" class="brand-logo">
+                <img src="{{ url_for('static', filename='img/eftx-logo.svg') }}" alt="EFTX logo">
+            </a>
+            <span>{{ brand.tagline }}</span>
         </div>
-        <button type="button" class="assistant-close" data-role="close" aria-label="Ocultar assistente">&times;</button>
+        <div class="topbar-actions">
+            {% if current_user.is_authenticated %}
+                <span class="user-chip">{{ current_user.full_name }}</span>
+                <a class="logout-link" href="{{ url_for('auth.logout') }}">Sair</a>
+            {% else %}
+                <a href="{{ url_for('auth.login') }}">Entrar</a>
+                <a class="btn-primary" href="{{ url_for('auth.register') }}">Cadastro</a>
+            {% endif %}
+        </div>
     </header>
-    <div class="assistant-messages" data-role="messages"></div>
-    <div class="assistant-status" data-role="status"></div>
-    <form class="assistant-form" data-role="form">
-        <label class="sr-only" for="assistant-input">Escreva sua pergunta para a IA</label>
-        <textarea id="assistant-input" name="message" rows="3" placeholder="Pergunte como configurar ou exportar seus diagramas..." required></textarea>
-        <div class="assistant-actions">
-            <button type="submit" class="btn-primary" data-role="send">Enviar</button>
-        </div>
-    </form>
-</div>
-<button
-    type="button"
-    class="assistant-toggle"
-    id="assistant-toggle"
-    aria-controls="assistant-panel"
-    aria-expanded="false"
->
-    <span class="assistant-icon" aria-hidden="true">&#10024;</span>
-    <span class="assistant-label">Ajuda inteligente</span>
-</button>
+    <div class="app-shell">
+        {% if current_user.is_authenticated %}
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <a class="sidebar-link{% if blueprint == 'projects' %} active{% endif %}" href="{{ url_for('projects.dashboard') }}">
+                    <span>Projetos</span>
+                </a>
+                <a class="sidebar-link{% if request.endpoint == 'projects.create' %} active{% endif %}" href="{{ url_for('projects.create') }}">
+                    <span>Novo projeto</span>
+                </a>
+                <a class="sidebar-link{% if blueprint == 'public' %} active{% endif %}" href="{{ url_for('public.home') }}#portfolio">
+                    <span>Antenas disponiveis</span>
+                </a>
+                {% if current_user.is_admin %}
+                <a class="sidebar-link{% if blueprint == 'admin' %} active{% endif %}" href="{{ url_for('admin.dashboard') }}">
+                    <span>Administracao</span>
+                </a>
+                <a class="sidebar-link{% if request.endpoint and request.endpoint.startswith('admin.data') %} active{% endif %}" href="{{ url_for('admin.data_index') }}">
+                    <span>Gestor de dados</span>
+                </a>
+                {% endif %}
+                <a class="sidebar-link" href="{{ url_for('projects.dashboard') }}#relatorios">
+                    <span>Relatorios</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <small>EFTX Telecom</small>
+            </div>
+        </aside>
+        {% endif %}
+        <main class="workspace">
+            {% with messages = get_flashed_messages(with_categories=True) %}
+            {% if messages %}
+                <ul class="flash">
+                    {% for category, message in messages %}
+                        <li class="{{ category }}">{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            {% endwith %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    <footer class="footer">
+        <p>&copy; {{ 2025 }} EFTX Telecom</p>
+    </footer>
+    {% if current_user.is_authenticated %}
+    <div
+        class="assistant-panel"
+        id="assistant-panel"
+        data-fetch-url="{{ url_for('api.get_assistant_conversation') }}"
+        data-post-url="{{ url_for('api.post_assistant_message') }}"
+        aria-live="polite"
+    >
+        <header class="assistant-header">
+            <div class="assistant-avatar" aria-hidden="true">AI</div>
+            <div class="assistant-title">
+                <strong>Assistente EFTX</strong>
+                <span>Orientacoes inteligentes sobre o app</span>
+            </div>
+            <button type="button" class="assistant-close" data-role="close" aria-label="Ocultar assistente">&times;</button>
+        </header>
+        <div class="assistant-messages" data-role="messages"></div>
+        <div class="assistant-status" data-role="status"></div>
+        <form class="assistant-form" data-role="form">
+            <label class="sr-only" for="assistant-input">Escreva sua pergunta para a IA</label>
+            <textarea id="assistant-input" name="message" rows="3" placeholder="Pergunte como configurar ou exportar seus diagramas..." required></textarea>
+            <div class="assistant-actions">
+                <button type="submit" class="btn-primary" data-role="send">Enviar</button>
+            </div>
+        </form>
+    </div>
+    <button
+        type="button"
+        class="assistant-toggle"
+        id="assistant-toggle"
+        aria-controls="assistant-panel"
+        aria-expanded="false"
+    >
+        <span class="assistant-icon" aria-hidden="true">&#10024;</span>
+        <span class="assistant-label">Ajuda inteligente</span>
+    </button>
+    {% endif %}
 {% endif %}
 {% block scripts %}{% endblock %}
 </body>

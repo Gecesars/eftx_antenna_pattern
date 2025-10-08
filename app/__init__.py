@@ -25,6 +25,7 @@ def create_app(config_name: str | None = None) -> Flask:
     register_blueprints(app)
     register_template_globals(app)
     register_cli(app)
+    register_security_headers(app)
 
     return app
 
@@ -61,3 +62,22 @@ def register_extensions(app: Flask) -> None:
         if user_uuid is None:
             return None
         return db.session.get(User, user_uuid)
+
+
+def register_security_headers(app: Flask) -> None:
+    default_csp = (
+        "default-src 'self'; "
+        "img-src 'self' data: https:; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "connect-src 'self'; "
+        "font-src 'self' data:"
+    )
+
+    @app.after_request
+    def _set_security_headers(response):
+        response.headers.setdefault("Content-Security-Policy", app.config.get("CONTENT_SECURITY_POLICY", default_csp))
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+        return response

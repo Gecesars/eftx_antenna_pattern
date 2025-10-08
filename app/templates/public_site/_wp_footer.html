@@ -1,0 +1,32 @@
+<div class="rodape-total">
+  <div class="item-rodape-total">
+    <div class="rodape">
+      <div class="item copyright">&copy; {{ 2025 }} EFTX Telecom — Sistemas irradiantes e serviços 360º</div>
+    </div>
+    <div class="rodape chat">
+      {% if company_info.whatsapp %}
+      {% set wa_clean = company_info.whatsapp|replace('+','')|replace(' ','')|replace('-','')|replace('(','')|replace(')','') %}
+      <a target="_blank" href="https://api.whatsapp.com/send?phone={{ wa_clean }}">
+        <div class="item whats"><i class="fab fa-whatsapp"></i> Atendimento pelo Whatsapp</div>
+      </a>
+      {% endif %}
+      {% if company_info.email %}
+      <a target="_blank" href="mailto:{{ company_info.email }}">
+        <div class="item online"><i class="fas fa-comments"></i> Atendimento Online</div>
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  {% if company_social_links %}
+  <div class="social">
+    {% for social in company_social_links %}
+      {% set icon = {
+        'instagram': 'fa-brands fa-instagram',
+        'facebook': 'fa-brands fa-facebook',
+        'linkedin': 'fa-brands fa-linkedin'
+      }[social.network] %}
+      <a href="{{ social.url }}" target="_blank"><i class="{{ icon }}"></i></a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>

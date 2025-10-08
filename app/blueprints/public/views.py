@@ -10,7 +10,7 @@ from ...models import Antenna
 public_bp = Blueprint("public", __name__)
 
 
-@public_bp.route("/")
+@public_bp.route("/catalogo")
 def home():
     antennas = Antenna.query.order_by(Antenna.name.asc()).all()
     categories = ["TV", "FM", "Microondas", "Telecom", None]

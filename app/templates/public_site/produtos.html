@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% set title = page_meta.title %}
+{% block head_public_meta %}
+  <meta name="description" content="{{ page_meta.description }}">
+  <link rel="canonical" href="{{ page_meta.url }}">
+  <meta property="og:title" content="{{ page_meta.og.title }}">
+  <meta property="og:description" content="{{ page_meta.og.description }}">
+  <meta property="og:url" content="{{ page_meta.og.url }}">
+  <meta property="og:image" content="{{ page_meta.og.image }}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="{{ page_meta.twitter.card }}">
+  <meta name="twitter:title" content="{{ page_meta.twitter.title }}">
+  <meta name="twitter:description" content="{{ page_meta.twitter.description }}">
+  <meta name="twitter:image" content="{{ page_meta.twitter.image }}">
+{% endblock %}
+{% block public_content %}
+<section class="section catalog" aria-labelledby="catalog-title">
+  <header class="section-head">
+    <h1 id="catalog-title">Catálogo de antenas, acessórios e soluções EFTX</h1>
+    <p>Filtre por categoria ou busque por palavras-chave para localizar rapidamente o equipamento desejado.</p>
+  </header>
+  <div class="catalog-toolbar">
+    <label for="product-search" class="sr-only">Buscar produto</label>
+    <input id="product-search" type="search" placeholder="Buscar por nome, categoria ou aplicação" autocomplete="off">
+    <div class="filter-counter" aria-live="polite"></div>
+  </div>
+  <div class="card-grid" id="product-grid" role="list">
+    {% if products %}
+      {% set ns = namespace(seen=[]) %}
+      {% for product in products %}
+        {% set category_slug = (product.category or 'linha profissional')|lower|replace(' ', '-')|replace('/', '-')|replace('&', '') %}
+        {% if category_slug not in ns.seen %}
+          <div id="categoria-{{ category_slug }}" class="catalog-anchor" aria-hidden="true"></div>
+          {% set ns.seen = ns.seen + [category_slug] %}
+        {% endif %}
+        <article class="product-card" id="{{ product.slug }}" role="listitem" data-product-name="{{ product.name|lower }}" data-product-category="{{ (product.category or '')|lower }}">
+          {% if product.thumbnail_url %}
+            <img src="{{ product.thumbnail_url }}" alt="{{ product.name }}" loading="lazy">
+          {% else %}
+            <div class="product-card__placeholder" aria-hidden="true">{{ product.name[0]|upper }}</div>
+          {% endif %}
+          <div class="product-card__body">
+            <p class="product-card__category">{{ product.category or 'Linha profissional' }}</p>
+            <h2>{{ product.name }}</h2>
+            {% if product.description %}
+              <p>{{ product.description }}</p>
+            {% else %}
+              <p class="empty">Entre em contato para receber o descritivo técnico completo.</p>
+            {% endif %}
+          </div>
+          <div class="product-card__footer">
+            {% if product.datasheet_url %}
+              <a class="btn-primary" href="{{ product.datasheet_url }}" target="_blank" rel="noopener"><i class="fa-solid fa-file-lines"></i> Abrir datasheet</a>
+            {% endif %}
+            {% if product.detail_url %}
+              <a class="btn" href="{{ product.detail_url }}" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> Detalhes</a>
+            {% else %}
+              <a class="btn" href="{{ url_for('public_site.contact') }}?produto={{ product.slug }}"><i class="fa-solid fa-headset"></i> Solicitar proposta</a>
+            {% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    {% else %}
+      <p class="empty">Nenhum produto cadastrado no momento.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  {% if product_schema %}
+    {% for schema in product_schema %}
+      <script type="application/ld+json">{{ schema|tojson }}</script>
+    {% endfor %}
+  {% endif %}
+{% endblock %}

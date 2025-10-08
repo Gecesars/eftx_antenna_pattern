@@ -12,6 +12,7 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 from flask_login import current_user, login_required
 from flask_wtf.csrf import generate_csrf
 from sqlalchemy.inspection import inspect
+from sqlalchemy.exc import IntegrityError
 
 from ...extensions import db
 from ...forms.admin import AntennaForm, CableForm, PatternUploadForm
@@ -42,7 +43,7 @@ def admin_required(func):
     def wrapper(*args, **kwargs):
         if not current_user.is_admin:
             flash("Acesso restrito ao administrador.", "danger")
-            return redirect(url_for("public.home"))
+            return redirect(url_for("public_site.home"))
         return func(*args, **kwargs)
 
     return wrapper
@@ -95,9 +96,14 @@ def antennas_create():
             except Exception:
                 flash("JSON de tabela de ganho inválido. Valor ignorado.", "warning")
         db.session.add(antenna)
-        db.session.commit()
-        flash("Antena criada.", "success")
-        return redirect(url_for("admin.antennas_list"))
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash("Já existe uma antena com este nome. Ajuste o identificador antes de salvar.", "danger")
+        else:
+            flash("Antena criada.", "success")
+            return redirect(url_for("admin.antennas_list"))
     return render_template("admin/antenna_form.html", form=form)
 
 

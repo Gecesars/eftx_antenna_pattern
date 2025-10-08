@@ -155,7 +155,7 @@ def logout():
         current_app.logger.info("Logout realizado por %s", current_user.email)
         logout_user()
         flash("Sessao encerrada.", "info")
-    return redirect(url_for("public.home"))
+    return redirect(url_for("public_site.home"))
 
 
 

@@ -209,3 +209,30 @@ Este projeto combina uma arquitetura Flask modular com cÃ¡lculos especializado
 Notas:
 - As integracoes com IA usam `GEMINI_API_KEY` e respeitam limites de conteudo. Caso nao haja texto extraivel no PDF, a extracao pode ser parcial.
 - As figuras e PDFs sao criados sob `EXPORT_ROOT` e o servico garante permissoes de escrita adequadas para `www-data`.
+
+## 10. Atualizacoes: Site institucional, integrações e consentimento
+
+- Blueprint `public_site`: novas rotas `/`, `/produtos`, `/downloads`, `/contato`, `/politica-de-cookies` e `/privacidade`, servindo o site institucional com templates dedicados (`templates/public_site/*`) e assets remotos do tema WordPress espelhado. `url_for('public_site.*')` passa a ser o destino padrão no cabeçalho.
+- Descoberta de conteúdo: utilitário `core/site_content.py` localiza automaticamente `/extx_site` ou `/eftx_site`, monta cards de produtos e agrupa PDFs de `DOCS_ROOT` (`/docs` por padrão) para exibição e download. Sitemap (`/sitemap.xml`) e robots (`/robots.txt`) refletem as novas rotas públicas.
+- Consentimento de cookies: banner/modal em `home.html` usa `utils/cookies.py` (cookie assinado, SameSite=Lax, HttpOnly) e injeta o estado via `templating.py`; scripts analíticos só carregam com consentimento (env `ANALYTICS_GTM_ID`).
+- Segurança e SEO: `create_app` registra cabeçalhos CSP, X-Content-Type-Options, Referrer-Policy e Permissions-Policy; templates incluem metatags OpenGraph/Twitter e JSON-LD (Organization/Product).
+- Integração WhatsApp: blueprint `integrations_whatsapp` expõe `/webhooks/whatsapp/inbound` e `/webhooks/whatsapp/status` com autenticação `X-Webhook-Token`, fallback institucional e chamada opcional ao Gemini 2.5 via `core/assistant_institutional.py` (feature flag `USE_GEMINI`).
+- Configuração ampliada em `config.py`/`.env.example`: novas env vars (`SITE_CONTENT_ROOT`, `DOCS_ROOT`, `USE_GEMINI`, `GEMINI_INSTITUTIONAL_MODEL`, `INSTITUTIONAL_PERSONA`, `N8N_WEBHOOK_TOKEN`, `ANALYTICS_GTM_ID`, rate limits de WhatsApp, `CONTENT_SECURITY_POLICY`, `PREFER_SECURE_COOKIES`).
+
+## 11. Formato visual do site EFTX (2025-10)
+
+- **Identidade**: páginas públicas (`app/templates/public_site/`) usam tipografia `Source Sans Pro` via CDN, esquema dark azul (`#041833` → `#0A4E8B`) com botões laranja (`#FF6A3D`) e alto contraste sobre fundo radial `#050f1f`.
+- **Hero institucional**: bloco `hero--institutional` combina gradiente + overlay, texto principal à esquerda e vitrine de especialidades (`hero-card`) sobre anéis animados (`hero-rings`). Barra inferior (`hero-strip`) lista segmentos atendidos.
+- **Seções internas**: cada `section` possui cards translúcidos com sombras profundas, grids responsivos (`solutions-grid`, `metrics-grid`, `simulation-wrapper`) e botões `btn/btn-primary` ajustados ao tema escuro.
+- **Produtos destacados**: cards (`product-card`) exibem miniaturas em 160px; thumbnails são obtidas de `IMA/` pelo helper `core.site_content.load_products_from_site`, priorizando arquivos com mesmo nome do PDF e aceitando extensões `.png/.jpg/.jpeg/.webp/.svg`. Fallback mantido para imagens padrão quando nada é encontrado.
+- **Navegação por cliente**: item "Área do Cliente" aparece no menu superior replicado do site original; direciona usuários autenticados ao dashboard (`/projects/dashboard`) e não autenticados ao login (`/auth/login`). Rodapé institucional foi simplificado para remover créditos externos e reforçar os canais EFTX com ícones brancos contrastantes.
+- **Galeria institucional**: `gallery-grid` mostra imagens vindas de `IMA/` filtradas por keywords (fábrica, montagem, infra). Quando não há correspondências, a seção permanece oculta.
+- **Downloads/CTA/Contato**: blocos `downloads-list`, `cta-contact` e `contact-panels` trazem cartões translúcidos, ações diretas (WhatsApp/mailto) e mapa em `iframe`, seguindo o mesmo tratamento de cor.
+- **CSS dedicado**: todos os estilos vivem em `app/static/css/main.css` (tema dark do app autenticado). O portal público utiliza os CSS/JS remotos do tema WordPress original, carregados via `base.html` quando o blueprint `public_site` está ativo.
+
+## 12. Atualizacoes recentes (2025-10)
+
+- Home pública revertida à versão institucional original (layout WordPress espelhado), com includes remotos e contexto padrão (`hero_slides`, downloads, company_info). Arquivos restabelecidos: `app/templates/public_site/home.html`, `app/templates/base.html` (ramificação para blueprint `public_site`) e `app/blueprints/public_site/views.py` (contexto clássico sem hero dinâmico). O favicon (`/site-assets/IMA/favicon.png`) é carregado globalmente via `<link rel="icon">` e os títulos das páginas públicas agora usam “EFTX Broadcast & Telecom”.
+- Removido o script local `app/static/js/public_site.js` e referências às animações de hero; página volta a depender dos assets hospedados em `eftx.com.br`.
+- Ambiente padrão: venv temporária `.venv` foi removida; utilize sempre `source /opt/py313/bin/activate` antes de instalar dependências ou rodar comandos Python no projeto.
+- Deploy/serviço: `systemctl reload eftx` executado ao final para garantir que o Gunicorn sirva a versão revertida da home.

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% set title = page_meta.title %}
+{% block head_extra %}
+  <meta name="description" content="{{ page_meta.description }}">
+  <link rel="canonical" href="{{ page_meta.url }}">
+  <meta property="og:title" content="{{ page_meta.og.title }}">
+  <meta property="og:description" content="{{ page_meta.og.description }}">
+  <meta property="og:url" content="{{ page_meta.og.url }}">
+  <meta property="og:image" content="{{ page_meta.og.image }}">
+  <meta property="og:type" content="article">
+  <meta name="twitter:card" content="{{ page_meta.twitter.card }}">
+  <meta name="twitter:title" content="{{ page_meta.twitter.title }}">
+  <meta name="twitter:description" content="{{ page_meta.twitter.description }}">
+  <meta name="twitter:image" content="{{ page_meta.twitter.image }}">
+{% endblock %}
+{% block content %}
+<section class="section policy" aria-labelledby="privacy-title">
+  <header class="section-head">
+    <h1 id="privacy-title">Política de Privacidade</h1>
+    <p>Compromisso da EFTX Telecom com a proteção de dados pessoais, em conformidade com a LGPD.</p>
+  </header>
+  <article class="policy-content">
+    <h2>1. Controladora</h2>
+    <p>EFTX Telecom Ltda., inscrita no CNPJ 00.000.000/0001-00, sediada em São Paulo — SP.</p>
+
+    <h2>2. Dados coletados</h2>
+    <ul>
+      <li><strong>Cadastro:</strong> nome, e-mail corporativo, telefone e informações profissionais.</li>
+      <li><strong>Uso da plataforma:</strong> logs de acesso, preferências de cookies e histórico de downloads.</li>
+      <li><strong>Suporte:</strong> interações com canais de atendimento e anexos enviados voluntariamente.</li>
+    </ul>
+
+    <h2>3. Finalidades</h2>
+    <ul>
+      <li>Fornecer acesso à plataforma de composição de antenas e serviços correlatos.</li>
+      <li>Enviar comunicações técnicas e administrativas.</li>
+      <li>Oferecer suporte especializado e personalizar conteúdos.</li>
+      <li>Cumprir obrigações legais e regulatórias.</li>
+    </ul>
+
+    <h2>4. Compartilhamento</h2>
+    <p>Compartilhamos dados com provedores terceirizados essenciais (infraestrutura, e-mail, suporte) sob cláusulas de confidencialidade e dentro do território nacional.</p>
+
+    <h2>5. Direitos dos titulares</h2>
+    <p>Você pode solicitar confirmação de tratamento, acesso, correção, exclusão, portabilidade e oposição por meio do e-mail <a href="mailto:privacidade@eftx.com.br">privacidade@eftx.com.br</a>.</p>
+
+    <h2>6. Segurança</h2>
+    <p>Aplicamos criptografia em trânsito e repouso, políticas de acesso mínimo, revisões periódicas e monitoramento dos ambientes críticos.</p>
+
+    <h2>7. Atualizações</h2>
+    <p>Esta política pode ser atualizada a qualquer momento. A data da última revisão será informada neste documento.</p>
+
+    <p><strong>Última atualização:</strong> Março de 2025.</p>
+  </article>
+</section>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+{% endblock %}

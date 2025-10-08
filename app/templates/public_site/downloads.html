@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% set title = page_meta.title %}
+{% block head_extra %}
+  <meta name="description" content="{{ page_meta.description }}">
+  <link rel="canonical" href="{{ page_meta.url }}">
+  <meta property="og:title" content="{{ page_meta.og.title }}">
+  <meta property="og:description" content="{{ page_meta.og.description }}">
+  <meta property="og:url" content="{{ page_meta.og.url }}">
+  <meta property="og:image" content="{{ page_meta.og.image }}">
+  <meta property="og:type" content="article">
+  <meta name="twitter:card" content="{{ page_meta.twitter.card }}">
+  <meta name="twitter:title" content="{{ page_meta.twitter.title }}">
+  <meta name="twitter:description" content="{{ page_meta.twitter.description }}">
+  <meta name="twitter:image" content="{{ page_meta.twitter.image }}">
+{% endblock %}
+{% block content %}
+<section class="section downloads" aria-labelledby="downloads-title">
+  <header class="section-head">
+    <h1 id="downloads-title">Biblioteca de documentos técnicos</h1>
+    <p>Datasheets, guias de instalação, normas ITU e apostilas produzidas pela engenharia EFTX.</p>
+  </header>
+  {% if downloads %}
+    <div class="table-responsive">
+      <table class="downloads-table" aria-describedby="downloads-title">
+        <thead>
+          <tr>
+            <th scope="col">Documento</th>
+            <th scope="col">Tamanho</th>
+            <th scope="col">Atualização</th>
+            <th scope="col" class="actions">Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in downloads %}
+            <tr>
+              <td data-label="Documento">
+                <strong>{{ item.name }}</strong>
+                <span class="filename">{{ item.filename }}</span>
+              </td>
+              <td data-label="Tamanho">{{ item.size_label }}</td>
+              <td data-label="Atualização">{{ item.modified_label }}</td>
+              <td data-label="Ação" class="actions">
+                <a class="btn-primary" href="{{ item.download_url }}">Baixar</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">Ainda não há arquivos disponíveis para download.</p>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+{% endblock %}

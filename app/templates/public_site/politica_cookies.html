@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% set title = page_meta.title %}
+{% block head_extra %}
+  <meta name="description" content="{{ page_meta.description }}">
+  <link rel="canonical" href="{{ page_meta.url }}">
+  <meta property="og:title" content="{{ page_meta.og.title }}">
+  <meta property="og:description" content="{{ page_meta.og.description }}">
+  <meta property="og:url" content="{{ page_meta.og.url }}">
+  <meta property="og:image" content="{{ page_meta.og.image }}">
+  <meta property="og:type" content="article">
+  <meta name="twitter:card" content="{{ page_meta.twitter.card }}">
+  <meta name="twitter:title" content="{{ page_meta.twitter.title }}">
+  <meta name="twitter:description" content="{{ page_meta.twitter.description }}">
+  <meta name="twitter:image" content="{{ page_meta.twitter.image }}">
+{% endblock %}
+{% block content %}
+<section class="section policy" aria-labelledby="policy-title">
+  <header class="section-head">
+    <h1 id="policy-title">Política de Cookies</h1>
+    <p>Entenda como utilizamos cookies para aprimorar a navegação e preservar sua privacidade.</p>
+  </header>
+  <article class="policy-content">
+    <h2>1. O que são cookies?</h2>
+    <p>Cookies são pequenos arquivos de texto armazenados pelo seu navegador ao visitar um site. Eles permitem lembrar preferências, analisar acessos e oferecer funcionalidades personalizadas.</p>
+
+    <h2>2. Categorias utilizadas</h2>
+    <ul>
+      <li><strong>Essenciais:</strong> necessários para o funcionamento do portal e autenticação.</li>
+      <li><strong>Desempenho:</strong> ajudam a medir visitas e identificar melhorias.</li>
+      <li><strong>Funcionais:</strong> registram preferências de idioma, região e conteúdos favoritos.</li>
+      <li><strong>Marketing:</strong> opcionais, usados apenas mediante consentimento explícito para campanhas segmentadas.</li>
+    </ul>
+
+    <h2>3. Gestão de consentimento</h2>
+    <p>Ao acessar o site pela primeira vez, exibiremos um banner para você escolher quais categorias deseja habilitar. Suas escolhas ficam salvas em um cookie assinado com validade de 12 meses.</p>
+
+    <h2>4. Como atualizar suas preferências</h2>
+    <p>Você pode revisar ou alterar o consentimento a qualquer momento clicando em “Preferências de cookies” no rodapé ou limpando os cookies do navegador.</p>
+
+    <h2>5. Contato</h2>
+    <p>Em caso de dúvidas, envie uma mensagem para <a href="mailto:privacidade@eftx.com.br">privacidade@eftx.com.br</a>.</p>
+  </article>
+</section>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+{% endblock %}

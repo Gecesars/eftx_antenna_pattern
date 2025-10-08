@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% set title = page_meta.title %}
+{% block head_extra %}
+  <meta name="description" content="{{ page_meta.description }}">
+  <link rel="canonical" href="{{ page_meta.url }}">
+  <meta property="og:title" content="{{ page_meta.og.title }}">
+  <meta property="og:description" content="{{ page_meta.og.description }}">
+  <meta property="og:url" content="{{ page_meta.og.url }}">
+  <meta property="og:image" content="{{ page_meta.og.image }}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="{{ page_meta.twitter.card }}">
+  <meta name="twitter:title" content="{{ page_meta.twitter.title }}">
+  <meta name="twitter:description" content="{{ page_meta.twitter.description }}">
+  <meta name="twitter:image" content="{{ page_meta.twitter.image }}">
+{% endblock %}
+{% block content %}
+<section class="section contact" aria-labelledby="contact-title">
+  <header class="section-head">
+    <h1 id="contact-title">Converse com a equipe EFTX</h1>
+    <p>Preencha o formulário ou escolha um dos canais diretos. Nossa engenharia responde em até 1 dia útil.</p>
+  </header>
+  <div class="contact-layout">
+    <form class="contact-form" method="post" action="mailto:contato@eftx.com.br" enctype="text/plain">
+      <div class="form-field">
+        <label for="contact-name">Nome completo</label>
+        <input id="contact-name" name="nome" type="text" required placeholder="Seu nome">
+      </div>
+      <div class="form-field">
+        <label for="contact-email">E-mail corporativo</label>
+        <input id="contact-email" name="email" type="email" required placeholder="voce@empresa.com">
+      </div>
+      <div class="form-field">
+        <label for="contact-phone">Telefone / WhatsApp</label>
+        <input id="contact-phone" name="telefone" type="tel" placeholder="(+55) 11 99999-9999">
+      </div>
+      <div class="form-field">
+        <label for="contact-message">Mensagem</label>
+        <textarea id="contact-message" name="mensagem" rows="6" required placeholder="Conte-nos sobre o projeto, prazo ou desafio técnico."></textarea>
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary" type="submit">Enviar mensagem</button>
+      </div>
+    </form>
+    <aside class="contact-info" aria-label="Canais alternativos">
+      <div class="contact-card">
+        <h2>Atendimento imediato</h2>
+        <ul>
+          <li><strong>WhatsApp:</strong> <a href="https://wa.me/5511999999999" target="_blank" rel="noopener">+55 11 99999-9999</a></li>
+          <li><strong>E-mail:</strong> <a href="mailto:contato@eftx.com.br">contato@eftx.com.br</a></li>
+        </ul>
+      </div>
+      <div class="contact-card">
+        <h2>Suporte técnico</h2>
+        <ul>
+          <li><strong>E-mail:</strong> <a href="mailto:engenharia@eftx.com.br">engenharia@eftx.com.br</a></li>
+          <li><strong>Horário:</strong> Segunda a sexta, 9h às 18h (BRT)</li>
+        </ul>
+      </div>
+      <div class="contact-card">
+        <h2>Endereço</h2>
+        <address>
+          Avenida das Inovações, 123<br>
+          São Paulo — SP<br>
+          CEP 00000-000 — Brasil
+        </address>
+      </div>
+    </aside>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+{% endblock %}

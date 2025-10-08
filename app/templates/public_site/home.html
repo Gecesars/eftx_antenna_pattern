@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% set hero_sequences = hero_sequences or [] %}
+{% set initial_hero = initial_hero or {} %}
+{% set downloads = featured_downloads or [] %}
+{% set company_metrics = [
+  {"icon": "fa-solid fa-tower-broadcast", "value": "700+", "label": "Sistemas instalados"},
+  {"icon": "fa-solid fa-calendar-check", "value": "26 anos", "label": "de atuação nacional"},
+  {"icon": "fa-solid fa-people-group", "value": "12", "label": "Estados com equipes residentes"},
+] %}
+{% set sector_badges = [
+  {"icon": "fa-solid fa-tower-broadcast", "label": "Broadcast"},
+  {"icon": "fa-solid fa-satellite-dish", "label": "Telecom"},
+  {"icon": "fa-solid fa-bolt", "label": "Energia"},
+  {"icon": "fa-solid fa-shield-halved", "label": "Defesa"},
+  {"icon": "fa-solid fa-microchip", "label": "IoT"},
+] %}
+
+{% block head_public_meta %}
+  <meta name="description" content="{{ page_meta.description }}">
+  <link rel="canonical" href="{{ page_meta.url }}">
+  <meta property="og:title" content="{{ page_meta.og.title }}">
+  <meta property="og:description" content="{{ page_meta.og.description }}">
+  <meta property="og:url" content="{{ page_meta.og.url }}">
+  <meta property="og:image" content="{{ page_meta.og.image }}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ page_meta.twitter.title }}">
+  <meta name="twitter:description" content="{{ page_meta.twitter.description }}">
+  <meta name="twitter:image" content="{{ page_meta.twitter.image }}">
+{% endblock %}
+
+{% block public_content %}
+<section id="inicio" class="hero--institutional reveal" data-hero-rotator>
+  <div class="hero-background" data-hero-background style="background-image: url('{{ initial_hero.image }}');" aria-hidden="true"></div>
+  <div class="hero-overlay" aria-hidden="true"></div>
+  <div class="hero-wrapper">
+    <div class="hero-content" data-hero-animate>
+      <span class="hero-tag"><i class="fa-solid fa-tower-broadcast"></i> Engenharia 360° EFTX</span>
+      <h1 data-hero-title>{{ initial_hero.title }}</h1>
+      <p data-hero-text>{{ initial_hero.description }}</p>
+      <div class="hero-actions" data-hero-animate>
+        <a class="btn-primary" href="{{ url_for('public_site.products') }}"><i class="fa-solid fa-box-open"></i> Catálogo completo</a>
+        <a class="btn" href="{{ url_for('public_site.contact') }}"><i class="fa-solid fa-headset"></i> Fale com a engenharia</a>
+      </div>
+      <div class="hero-strip" role="list" data-hero-animate>
+        {% for item in sector_badges %}
+          <span role="listitem"><i class="{{ item.icon }}"></i> {{ item.label }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="hero-visual" aria-hidden="true" data-hero-animate>
+      <div class="hero-rings">
+        <div class="ring"></div>
+        <div class="ring ring--2"></div>
+        <div class="ring ring--3"></div>
+      </div>
+      {% if hero_slides %}
+      <div class="hero-card">
+        <strong>Últimos destaques</strong>
+        <ul>
+          {% for slide in hero_slides[:3] %}
+            <li><i class="fa-solid fa-circle"></i> {{ slide.title }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section id="sobre" class="section highlight reveal">
+  <header class="section-head">
+    <h2><i class="fa-solid fa-circle-info"></i> Quem somos</h2>
+    <p>Integramos planejamento, fabricação, instalação e operação assistida para radiodifusão, telecom e projetos especiais. Cada entrega sai do laboratório com validação em campo e memorial técnico completo.</p>
+  </header>
+  <div class="metrics-grid" role="list">
+    {% for metric in company_metrics %}
+      <div class="metric-card" role="listitem">
+        <i class="{{ metric.icon }}" aria-hidden="true"></i>
+        <strong>{{ metric.value }}</strong>
+        <span>{{ metric.label }}</span>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section id="solucoes" class="section reveal">
+  <header class="section-head">
+    <h2><i class="fa-solid fa-layer-group"></i> Pilares de atuação</h2>
+    <p>Acompanhamos todo o ciclo: estudo de cobertura, modelagem ERP, fabricação, integração em campo e suporte pós-start-up com telemetria e IA assistiva.</p>
+  </header>
+  <div class="highlights-grid" role="list">
+    {% for highlight in company_highlights %}
+      <article class="highlight-card" role="listitem">
+        <h3><i class="fa-solid fa-star"></i> {{ highlight.title }}</h3>
+        <p>{{ highlight.description }}</p>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section id="produtos" class="section reveal">
+  <header class="section-head">
+    <h2><i class="fa-solid fa-boxes-stacked"></i> Produtos em evidência</h2>
+    <p>Datasheets atualizados e prontos para download imediato. Todos os PDFs estão disponíveis em nossa biblioteca técnica.</p>
+  </header>
+  <div class="card-grid" role="list">
+    {% if featured_products %}
+      {% for product in featured_products %}
+        <article class="product-card" role="listitem">
+          {% if product.thumbnail_url %}
+            <img src="{{ product.thumbnail_url }}" alt="{{ product.name }}" loading="lazy">
+          {% else %}
+            <div class="product-card__placeholder" aria-hidden="true">{{ product.name[0]|upper }}</div>
+          {% endif %}
+          <div class="product-card__body">
+            <p class="product-card__category"><i class="fa-solid fa-tags"></i> {{ product.category or 'Linha profissional' }}</p>
+            <h3>{{ product.name }}</h3>
+            <p>{{ product.description or 'Entre em contato para receber o descritivo técnico completo.' }}</p>
+          </div>
+          <div class="product-card__footer">
+            <a class="btn-primary" href="{{ product.datasheet_url }}" target="_blank" rel="noopener"><i class="fa-solid fa-file-lines"></i> Abrir datasheet</a>
+            <a class="btn" href="{{ url_for('public_site.contact') }}?produto={{ product.slug }}"><i class="fa-solid fa-comments"></i> Solicitar proposta</a>
+          </div>
+        </article>
+      {% endfor %}
+    {% else %}
+      <p class="empty">Nenhum produto cadastrado no momento.</p>
+    {% endif %}
+  </div>
+  <div class="section-actions">
+    <a class="btn" href="{{ url_for('public_site.products') }}"><i class="fa-solid fa-magnifying-glass"></i> Ver catálogo completo</a>
+    <a class="btn" href="{{ url_for('public_site.downloads') }}"><i class="fa-solid fa-download"></i> Biblioteca técnica</a>
+  </div>
+</section>
+
+{% if gallery_images %}
+<section id="galeria" class="section reveal">
+  <header class="section-head">
+    <h2><i class="fa-solid fa-images"></i> Infraestrutura em foco</h2>
+    <p>Registros das linhas de fabricação, laboratório próprio e integrações em campo espalhadas pelo Brasil.</p>
+  </header>
+  <div class="gallery-grid" role="list">
+    {% for image in gallery_images %}
+      <figure class="gallery-card" role="listitem">
+        <img src="{{ image.image }}" alt="{{ image.title }}">
+        <figcaption><i class="fa-solid fa-camera"></i> {{ image.title }}</figcaption>
+      </figure>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section id="insights" class="section highlight reveal">
+  <header class="section-head">
+    <h2><i class="fa-solid fa-lightbulb"></i> Insights e materiais</h2>
+    <p>Atualizamos constantemente nossa biblioteca com memoriais, cases de sucesso e roteiros de implantação.</p>
+  </header>
+  <div class="news-wrapper">
+    <div>
+      <h3><i class="fa-solid fa-newspaper"></i> Destaques recentes</h3>
+      <p>Veja como nossas equipes combinam análise numérica, ensaios de laboratório e implantação em campo para atender metas de cobertura e compliance regulatório.</p>
+      <a class="btn" href="{{ url_for('public_site.downloads') }}"><i class="fa-solid fa-book-open"></i> Explorar biblioteca</a>
+    </div>
+    <div>
+      {% if downloads %}
+      <ul class="downloads-list">
+        {% for download in downloads[:3] %}
+          <li class="download-card">
+            <i class="fa-solid fa-file-pdf"></i>
+            <div>
+              <strong>{{ download.name }}</strong>
+              <span>{{ download.size_label }} • Atualizado em {{ download.modified_label }}</span>
+            </div>
+            <a class="btn" href="{{ download.download_url }}" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+          </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="empty">Estamos preparando novos memoriais técnicos para download.</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section id="processo" class="section reveal">
+  <header class="section-head">
+    <h2><i class="fa-solid fa-diagram-project"></i> Como entregamos</h2>
+    <p>Fluxo integrado para acelerar aprovações regulatórias e entrada em operação com segurança e previsibilidade.</p>
+  </header>
+  <ol class="process-steps">
+    <li><span><i class="fa-solid fa-binoculars"></i> Diagnóstico & requisitos</span></li>
+    <li><span><i class="fa-solid fa-flask"></i> Projeto executivo & simulação</span></li>
+    <li><span><i class="fa-solid fa-hard-hat"></i> Fabricação & integração</span></li>
+    <li><span><i class="fa-solid fa-wrench"></i> Comissionamento & laudos</span></li>
+    <li><span><i class="fa-solid fa-headset"></i> Operação assistida</span></li>
+  </ol>
+</section>
+
+<section id="contato" class="section reveal">
+  <header class="section-head">
+    <h2><i class="fa-solid fa-handshake-angle"></i> Fale com a EFTX</h2>
+    <p>Nosso time comercial e de engenharia responde em até um dia útil para novas propostas e mantém suporte 24/7 para contratos críticos.</p>
+  </header>
+  <div class="contact-grid">
+    <article class="contact-card">
+      <h3><i class="fa-solid fa-headset"></i> Canais diretos</h3>
+      <ul class="contact-card__list">
+        {% if contact_info.phone %}
+        <li><i class="fa-solid fa-phone"></i> {{ contact_info.phone }}</li>
+        {% endif %}
+        {% if contact_info.whatsapp %}
+        <li><i class="fa-brands fa-whatsapp"></i> <a href="https://wa.me/{{ contact_info.whatsapp|replace('+','')|replace(' ','')|replace('-','')|replace('(','')|replace(')','') }}" target="_blank" rel="noopener">{{ contact_info.whatsapp }}</a></li>
+        {% endif %}
+        {% if contact_info.email %}
+        <li><i class="fa-solid fa-envelope"></i> <a href="mailto:{{ contact_info.email }}">{{ contact_info.email }}</a></li>
+        {% endif %}
+        {% if contact_info.address %}
+        <li><i class="fa-solid fa-location-dot"></i> {{ contact_info.address }}</li>
+        {% endif %}
+      </ul>
+      {% if social_links %}
+      <div class="contact-card__social">
+        {% for social in social_links %}
+          {% set icon_map = {
+            'instagram': 'fa-brands fa-instagram',
+            'facebook': 'fa-brands fa-facebook',
+            'linkedin': 'fa-brands fa-linkedin',
+            'youtube': 'fa-brands fa-youtube'
+          } %}
+          <a href="{{ social.url }}" target="_blank" rel="noopener"><i class="{{ icon_map.get(social.network, 'fa-solid fa-globe') }}"></i></a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </article>
+    <aside class="contact-map">
+      {% if contact_info.map_embed %}
+        <iframe src="{{ contact_info.map_embed }}" allowfullscreen="true" loading="lazy"></iframe>
+      {% else %}
+        <div class="contact-placeholder">
+          <i class="fa-solid fa-map-location-dot"></i>
+          <p>Atuação nacional — informe sua cidade no formulário de contato e direcionamos o time regional.</p>
+        </div>
+      {% endif %}
+    </aside>
+  </div>
+</section>
+
+<div class="assistant-panel" data-assistant-container>
+  <div class="assistant-content" data-role="assistant-widget" data-assistant-mode="public" data-assistant-greeting="{{ assistant_greeting }}" aria-hidden="true">
+    <header class="assistant-header">
+      <div class="assistant-avatar" aria-hidden="true"><i class="fa-solid fa-robot"></i></div>
+      <div class="assistant-title">
+        <strong>Assistente EFTX</strong>
+        <span>Respostas rápidas e links úteis</span>
+      </div>
+      <button type="button" class="assistant-close" data-assistant-close aria-label="Fechar assistente">
+        &times;
+      </button>
+    </header>
+    <div class="assistant-messages" data-role="assistant-messages"></div>
+    <div class="assistant-status" data-role="assistant-status"></div>
+    <form class="assistant-form" data-role="assistant-form">
+      <label class="sr-only" for="assistant-message">Envie sua pergunta</label>
+      <textarea id="assistant-message" name="message" rows="3" placeholder="Pergunte sobre nossos produtos, exportações ou suporte."></textarea>
+      <div class="assistant-actions">
+        <button type="submit" class="btn-primary"><i class="fa-solid fa-paper-plane"></i> Enviar</button>
+      </div>
+    </form>
+  </div>
+</div>
+<button
+  type="button"
+  class="assistant-toggle"
+  data-assistant-toggle
+  aria-expanded="false"
+  aria-controls="assistant-message"
+>
+  <span class="assistant-icon" aria-hidden="true">&#10024;</span>
+  <span class="assistant-label">Ajuda inteligente</span>
+</button>
+<script id="hero-banner-data" type="application/json">{{ hero_sequences|tojson }}</script>
+{% endblock %}
