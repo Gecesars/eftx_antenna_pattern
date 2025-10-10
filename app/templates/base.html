@@ -8,9 +8,11 @@
     <title>{{ title }}</title>
     <link rel="icon" type="image/png" href="{{ url_for('public_site.site_asset', filename='IMA/favicon.png') }}">
     {% if blueprint == 'public_site' %}
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.css') }}">
-        <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/public_site.css') }}">
         {% block head_public_meta %}{% endblock %}
     {% else %}
         <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">

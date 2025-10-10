@@ -7681,9 +7681,6 @@ readers do not read off random characters that represent icons */
 .fa-js:before {
   content: "\f3b8"; }
 
-.fa-ideal:before {
-  content: "\e013"; }
-
 .fa-git:before {
   content: "\f1d3"; }
 

@@ -57,9 +57,17 @@ def home() -> str:
     )
 
     hero_slides = _hero_slides(all_products)
+    hero_slider_images = _wowslider_images()
     gallery_images = _institutional_gallery() or hero_slides
 
-    hero_images = [slide.get("image") for slide in hero_slides if slide.get("image")]
+    hero_images_candidates = hero_slider_images + [slide.get("image") for slide in hero_slides if slide.get("image")]
+    seen_images: set[str] = set()
+    hero_images = []
+    for image in hero_images_candidates:
+        if not image or image in seen_images:
+            continue
+        seen_images.add(image)
+        hero_images.append(image)
     if not hero_images:
         hero_images = [item.get("image") for item in gallery_images if item.get("image")]
 
@@ -84,7 +92,7 @@ def home() -> str:
             ),
         },
         {
-            "title": "Arrays multiantena calibrados para ERP ideal",
+            "title": "Arrays multiantena calibrados para ERP de referência",
             "description": (
                 "Nossa stack numérica controla tilt, perdas e ripple para entregar diagramas alinhados às normas de FM, "
                 "TV digital e enlaces licenciados."
@@ -271,7 +279,20 @@ def site_asset(filename: str):
         candidates.append((local_root, relative))
 
     if site_root:
-        candidates.append((site_root, Path(filename)))
+        rel = Path(filename)
+        rel_candidates = [rel]
+        if rel.parts and rel.parts[0] != "content":
+            rel_candidates.extend([
+                Path("content") / rel,
+                Path("content/images") / rel,
+                Path("content/other") / rel,
+            ])
+        seen: set[Path] = set()
+        for rel_candidate in rel_candidates:
+            if rel_candidate in seen:
+                continue
+            seen.add(rel_candidate)
+            candidates.append((site_root, rel_candidate))
 
     for base, rel in candidates:
         if not base or not base.exists():
@@ -507,7 +528,7 @@ def _simulation_scenarios() -> list[dict]:
             "label": "Broadcast FM",
             "title": "Rede FM 20 kW / 4 painéis",
             "description": (
-                "Stack vertical com quatro painéis e alimentação balanceada. Ideal para capitais com terreno acidentado, "
+                "Stack vertical com quatro painéis e alimentação balanceada. Recomendado para capitais com terreno acidentado, "
                 "mantendo cobertura urbana sem exceder limites de campo."),
             "metrics": [
                 {"name": "ERP composto", "value": "87 kW"},
@@ -848,6 +869,44 @@ def _hero_slides(products: list[dict]) -> list[dict]:
         if len(slides) >= 6:
             break
     return slides
+
+
+def _wowslider_images(limit: int = 8) -> list[str]:
+    site_root = discover_site_root()
+    if not site_root:
+        return []
+
+    backup = site_root / "content" / "pages" / "eftx.com.br" / "index.html"
+    if not backup.is_file():
+        return []
+
+    try:
+        html = backup.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        html = backup.read_text(encoding="latin-1", errors="ignore")
+
+    match = re.search(r"<div id=\"wowslider-container1\">.*?<ul>(.*?)</ul>", html, re.S)
+    if not match:
+        return []
+
+    block = match.group(1)
+    sources = re.findall(r"<img[^>]+src=\"([^\"]+)\"", block)
+    images: list[str] = []
+
+    for src in sources:
+        relative = Path(src.lstrip("/"))
+        candidates = [
+            Path("content/images/eftx.com.br") / relative,
+            Path("content/other/eftx.com.br") / relative,
+        ]
+        for candidate in candidates:
+            absolute = site_root / candidate
+            if absolute.is_file():
+                images.append(url_for("public_site.site_asset", filename=str(candidate)))
+                break
+        if len(images) >= limit:
+            break
+    return images
 
 
 def _institutional_gallery(limit: int = 6) -> list[dict]:

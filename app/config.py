@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import os
 from datetime import timedelta
+from pathlib import Path
 
 
 class BaseConfig:
+    _SITE_MIRROR = Path(os.getenv("SITE_CONTENT_ROOT", "/eftx_site"))
+    if not _SITE_MIRROR.is_dir():
+        _SITE_MIRROR = None
+
     SECRET_KEY = os.getenv("SECRET_KEY", "changeme")
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
@@ -68,6 +73,25 @@ class BaseConfig:
     KNOWLEDGE_INDEX_DIR = os.getenv("KNOWLEDGE_INDEX_DIR", "vector_store")
     KNOWLEDGE_MODEL = os.getenv("KNOWLEDGE_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
     KNOWLEDGE_TOPK = int(os.getenv("KNOWLEDGE_TOPK", "3"))
+    SITE_CONTENT_ROOT = os.getenv("SITE_CONTENT_ROOT", str(_SITE_MIRROR) if _SITE_MIRROR else "") or None
+    COMPANY_NAME = os.getenv("COMPANY_NAME", "EFTX Telecom")
+    COMPANY_PHONE = os.getenv("COMPANY_PHONE", "(19) 98145-6085 / (19) 4117-0270")
+    COMPANY_EMAIL = os.getenv("COMPANY_EMAIL", "contato@eftx.com.br")
+    COMPANY_WHATSAPP = os.getenv("COMPANY_WHATSAPP", "5519998537007")
+    COMPANY_ADDRESS = os.getenv(
+        "COMPANY_ADDRESS",
+        "Rua Higyno Guilherme Costato, 298 - Jardim Pinheiros - Valinhos/SP",
+    )
+    COMPANY_INSTAGRAM = os.getenv("COMPANY_INSTAGRAM", "https://www.instagram.com/iftx_broadcast/")
+    COMPANY_FACEBOOK = os.getenv("COMPANY_FACEBOOK", "https://www.facebook.com/iftxbroadcast")
+    COMPANY_LINKEDIN = os.getenv(
+        "COMPANY_LINKEDIN",
+        "https://www.linkedin.com/company/iftx-broadcast-television-radio",
+    )
+    COMPANY_MAP_EMBED = os.getenv(
+        "COMPANY_MAP_EMBED",
+        "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d918.4187471130787!2d-46.981851682980846!3d-22.962193779764863!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x94c8cd8a8bcf404d%3A0xdec6808ca80b75c6!2sR.%20Higyno%20Guilherme%20Costato%2C%20298%20-%20Jardim%20Pinheiros%2C%20Valinhos%20-%20SP%2C%2013274-410!5e0!3m2!1spt-BR!2sbr!4v1653476192489!5m2!1spt-BR!2sbr",
+    )
 
 
 class DevelopmentConfig(BaseConfig):

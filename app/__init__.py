@@ -68,10 +68,11 @@ def register_security_headers(app: Flask) -> None:
     default_csp = (
         "default-src 'self'; "
         "img-src 'self' data: https:; "
-        "script-src 'self'; "
-        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "connect-src 'self'; "
-        "font-src 'self' data:"
+        "font-src 'self' data: https://fonts.gstatic.com; "
+        "frame-src 'self' https://www.google.com https://maps.google.com https://maps.gstatic.com"
     )
 
     @app.after_request
