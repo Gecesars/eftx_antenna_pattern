@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from flask import Flask
+from flask import Flask, current_app
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -50,7 +50,14 @@ def register_extensions(app: Flask) -> None:
             user_uuid = uuid.UUID(user_id)
         except ValueError:
             return None
-        return db.session.get(User, user_uuid)
+        if user_uuid is None:
+            return None
+        try:
+            return db.session.get(User, user_uuid)
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('Failed to load user %s; rolling back session.', user_id)
+            return None
 
     @jwt.user_lookup_loader
     def user_lookup_callback(_jwt_header, jwt_data):

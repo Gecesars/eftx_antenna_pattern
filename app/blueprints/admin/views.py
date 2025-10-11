@@ -5,18 +5,34 @@ from datetime import datetime
 import numbers
 from decimal import Decimal
 from functools import wraps
-from uuid import UUID
+from pathlib import Path
+from uuid import UUID, uuid4
 
 import numpy as np
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for, jsonify
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from flask_wtf.csrf import generate_csrf
 from sqlalchemy.inspection import inspect
 from sqlalchemy.exc import IntegrityError
+from werkzeug.utils import secure_filename
 
-from ...extensions import db
+from ...core import discover_site_root, list_pdfs_from_docs, load_products_from_site
+from ...extensions import db, csrf
 from ...forms.admin import AntennaForm, CableForm, PatternUploadForm
-from ...models import Antenna, AntennaPattern, AntennaPatternPoint, Cable, PatternType, Project, ProjectAntenna, ProjectExport, User
+from ...models import (
+    Antenna,
+    AntennaPattern,
+    AntennaPatternPoint,
+    Cable,
+    PatternType,
+    Project,
+    ProjectAntenna,
+    ProjectExport,
+    SiteContentBlock,
+    SiteDocument,
+    User,
+)
+from ..public_site.views import DEFAULT_HERO_PROMOS, DEFAULT_HIGHLIGHTS, DEFAULT_FAQ
 from ...services.pattern_composer import resample_pattern, resample_vertical
 from ...services.pattern_parser import parse_pattern_bytes
 from ...services.cable_extractor import extract_cable_from_datasheet
@@ -36,6 +52,211 @@ MANAGED_MODELS: dict[str, type] = {
     "cabos": Cable,
 }
 
+MEDIA_EXTENSIONS = {"png", "jpg", "jpeg", "webp", "svg"}
+DOCUMENT_EXTENSIONS = {"pdf"}
+
+
+def _project_root_path() -> Path:
+    configured = current_app.config.get("PROJECT_ROOT")
+    if configured:
+        return Path(configured)
+    return Path(current_app.root_path).parent
+
+
+def _site_upload_root() -> Path:
+    base = _project_root_path()
+    folder = current_app.config.get("SITE_UPLOAD_ROOT", "site_uploads")
+    root = base / folder
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _docs_root_path() -> Path:
+    docs_root = _project_root_path() / "docs"
+    docs_root.mkdir(parents=True, exist_ok=True)
+    return docs_root
+
+
+def _resolve_media_path(path: str | None) -> str | None:
+    if not path:
+        return None
+    if path.startswith(("http://", "https://", "/")):
+        return path
+    return url_for("public_site.site_asset", filename=path)
+
+
+def _upsert_block(slug: str, data, *, label: str | None = None) -> SiteContentBlock:
+    block = SiteContentBlock.query.filter_by(slug=slug).first()
+    if block is None:
+        block = SiteContentBlock(slug=slug, label=label)
+        db.session.add(block)
+    block.data = data
+    if label is not None:
+        block.label = label
+    db.session.commit()
+    return block
+
+
+def _get_block(slug: str, default=None):
+    try:
+        block = SiteContentBlock.query.filter_by(slug=slug).first()
+    except Exception:
+        return default
+    if block and block.data is not None:
+        return block.data
+    return default
+
+
+def _store_image(file, *, section: str = "general") -> str:
+    if file is None or not file.filename:
+        raise ValueError("Nenhum arquivo enviado")
+    ext = file.filename.rsplit(".", 1)[-1].lower()
+    if ext not in MEDIA_EXTENSIONS:
+        raise ValueError("Formato de imagem não suportado")
+    filename = secure_filename(f"{uuid4().hex}.{ext}")
+    target_dir = _site_upload_root() / "images" / section
+    target_dir.mkdir(parents=True, exist_ok=True)
+    file.save(target_dir / filename)
+    return f"uploads/images/{section}/{filename}"
+
+
+def _store_document(file) -> str:
+    if file is None or not file.filename:
+        raise ValueError("Nenhum arquivo enviado")
+    ext = file.filename.rsplit(".", 1)[-1].lower()
+    if ext not in DOCUMENT_EXTENSIONS:
+        raise ValueError("Somente arquivos PDF são permitidos")
+    filename = secure_filename(file.filename)
+    docs_root = _docs_root_path()
+    destination = docs_root / filename
+    counter = 1
+    while destination.exists():
+        name_without_ext = destination.stem
+        destination = docs_root / f"{name_without_ext}_{counter}.{ext}"
+        filename = destination.name
+        counter += 1
+    file.save(destination)
+    return filename
+
+
+def _documents_meta_map() -> dict[str, SiteDocument]:
+    meta_map: dict[str, SiteDocument] = {}
+    try:
+        documents = SiteDocument.query.all()
+    except Exception:
+        return meta_map
+    for doc in documents:
+        meta_map[(doc.filename or "").lower()] = doc
+    return meta_map
+
+
+def _serialize_document_entry(item: dict, doc_meta: SiteDocument | None) -> dict:
+    filename = (item.get("filename") or "").lower()
+    display_name = item.get("name")
+    description = item.get("description")
+    category = item.get("category")
+    metadata = {}
+    doc_id = None
+    is_featured = False
+    thumbnail_path = None
+    thumbnail_url = None
+    if doc_meta:
+        doc_id = str(doc_meta.id)
+        if doc_meta.display_name:
+            display_name = doc_meta.display_name
+        if doc_meta.description:
+            description = doc_meta.description
+        if doc_meta.category:
+            category = doc_meta.category
+        if doc_meta.metadata_json:
+            metadata = doc_meta.metadata_json
+        if doc_meta.thumbnail_path:
+            thumbnail_path = doc_meta.thumbnail_path
+            thumbnail_url = _resolve_media_path(doc_meta.thumbnail_path)
+        is_featured = bool(doc_meta.is_featured)
+
+    return {
+        **item,
+        "id": doc_id,
+        "filename": item.get("filename"),
+        "display_name": display_name,
+        "description": description,
+        "category": category,
+        "metadata": metadata,
+        "thumbnail_path": thumbnail_path,
+        "thumbnail_url": thumbnail_url,
+        "is_featured": is_featured,
+        "download_url": url_for("public_site.download_file", filename=item["path_rel"]),
+    }
+
+
+def _serialize_documents() -> list[dict]:
+    docs_root = _docs_root_path()
+    base_items = list_pdfs_from_docs(docs_root)
+    meta_map = _documents_meta_map()
+    return [
+        _serialize_document_entry(item, meta_map.get((item.get("filename") or "").lower()))
+        for item in base_items
+    ]
+
+
+
+def _json_payload() -> dict:
+    payload = request.get_json(silent=True)
+    return payload if isinstance(payload, dict) else {}
+
+
+
+def _apply_document_payload(doc: SiteDocument, payload: dict) -> None:
+    if "display_name" in payload:
+        value = payload.get("display_name")
+        doc.display_name = value.strip() if isinstance(value, str) and value.strip() else None
+    if "category" in payload:
+        value = payload.get("category")
+        doc.category = value.strip() if isinstance(value, str) and value.strip() else None
+    if "description" in payload:
+        value = payload.get("description")
+        doc.description = value.strip() if isinstance(value, str) and value.strip() else None
+    if "thumbnail_path" in payload:
+        value = payload.get("thumbnail_path")
+        doc.thumbnail_path = value.strip() if isinstance(value, str) and value.strip() else None
+    if "is_featured" in payload:
+        doc.is_featured = bool(payload.get("is_featured"))
+    if "metadata" in payload and isinstance(payload.get("metadata"), dict):
+        doc.metadata_json = payload.get("metadata")
+def _build_site_state() -> dict:
+    site_root = discover_site_root()
+
+    contacts_block = _get_block("contacts", {}) or {}
+    hero_promos_block = _get_block("hero_promos", []) or []
+    hero_images_block = _get_block("hero_images", []) or []
+    highlights_block = _get_block("highlights", []) or []
+    gallery_block = _get_block("gallery", []) or []
+    faq_block = _get_block("faq", []) or []
+
+    return {
+        "blocks": {
+            "contacts": contacts_block,
+            "hero_promos": hero_promos_block,
+            "hero_images": hero_images_block,
+            "highlights": highlights_block,
+            "gallery": gallery_block,
+            "faq": faq_block,
+        },
+        "defaults": {
+            "hero_promos": DEFAULT_HERO_PROMOS,
+            "highlights": DEFAULT_HIGHLIGHTS,
+            "faq": DEFAULT_FAQ,
+        },
+        "documents": _serialize_documents(),
+        "preview": {
+            "home": url_for("public_site.home"),
+            "products": url_for("public_site.products"),
+            "downloads": url_for("public_site.downloads"),
+        },
+        "site_root": str(site_root) if site_root else None,
+        "csrf_token": generate_csrf(),
+    }
 
 def admin_required(func):
     @wraps(func)
@@ -69,6 +290,19 @@ def antennas_list():
 def cables_list():
     cables = Cable.query.order_by(Cable.display_name).all()
     return render_template("admin/cables_list.html", cables=cables)
+
+
+@admin_bp.route("/site-designer")
+@admin_required
+def site_designer():
+    state = _build_site_state()
+    return render_template("admin/site_designer.html", state=state)
+
+
+@admin_bp.route("/site-designer/state")
+@admin_required
+def site_designer_state():
+    return jsonify(_build_site_state())
 
 
 @admin_bp.route("/antennas/new", methods=["GET", "POST"])
@@ -567,3 +801,220 @@ def antennas_parse_datasheet():
     status = 200 if "error" not in data else 500
     data["csrf_token"] = generate_csrf()
     return jsonify(data), status
+
+
+@admin_bp.route("/site-designer/contacts", methods=["POST"])
+@admin_required
+@csrf.exempt
+def site_designer_update_contacts():
+    payload = _json_payload()
+    allowed = ["name", "phone", "email", "address", "whatsapp", "map_embed", "instagram", "facebook", "linkedin"]
+    data = {}
+    for key in allowed:
+        if key in payload:
+            value = payload.get(key)
+            if isinstance(value, str):
+                value = value.strip()
+            if value in (None, ""):
+                continue
+            data[key] = value
+    _upsert_block("contacts", data, label="Contatos")
+    return jsonify({"status": "ok", "state": _build_site_state()})
+
+
+@admin_bp.route("/site-designer/hero/promos", methods=["POST"])
+@admin_required
+@csrf.exempt
+def site_designer_update_hero_promos():
+    payload = _json_payload()
+    items = payload.get("items")
+    promos: list[dict[str, str | None]] = []
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            title = (item.get("title") or "").strip()
+            description = (item.get("description") or "").strip()
+            image = item.get("image") or item.get("media") or item.get("cover")
+            if not title:
+                continue
+            if isinstance(image, str):
+                image = image.strip() or None
+            promos.append({"title": title, "description": description, "image": image})
+    _upsert_block("hero_promos", promos, label="Hero Promos")
+    return jsonify({"status": "ok", "state": _build_site_state()})
+
+
+@admin_bp.route("/site-designer/hero/images", methods=["POST"])
+@admin_required
+@csrf.exempt
+def site_designer_update_hero_images():
+    payload = _json_payload()
+    items = payload.get("items")
+    images: list[dict[str, str | None]] = []
+    if isinstance(items, list):
+        for item in items:
+            title = None
+            if isinstance(item, str):
+                path = item.strip()
+            elif isinstance(item, dict):
+                path = (item.get("image") or item.get("path") or item.get("src") or "").strip()
+                raw_title = item.get("title") or item.get("label") or ""
+                title = raw_title.strip() or None
+            else:
+                continue
+            if not path:
+                continue
+            images.append({"image": path, "title": title})
+    _upsert_block("hero_images", images, label="Hero Images")
+    return jsonify({"status": "ok", "state": _build_site_state()})
+
+
+@admin_bp.route("/site-designer/highlights", methods=["POST"])
+@admin_required
+@csrf.exempt
+def site_designer_update_highlights():
+    payload = _json_payload()
+    items = payload.get("items")
+    highlights: list[dict[str, str]] = []
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            title = (item.get("title") or "").strip()
+            description = (item.get("description") or "").strip()
+            if not title:
+                continue
+            highlights.append({"title": title, "description": description})
+    _upsert_block("highlights", highlights, label="Highlights")
+    return jsonify({"status": "ok", "state": _build_site_state()})
+
+
+@admin_bp.route("/site-designer/gallery", methods=["POST"])
+@admin_required
+@csrf.exempt
+def site_designer_update_gallery():
+    payload = _json_payload()
+    items = payload.get("items")
+    gallery: list[dict[str, str | None]] = []
+    if isinstance(items, list):
+        for item in items:
+            if isinstance(item, str):
+                path = item.strip()
+                title = None
+            elif isinstance(item, dict):
+                path = (item.get("image") or item.get("path") or item.get("src") or "").strip()
+                raw_title = item.get("title") or item.get("label") or ""
+                title = raw_title.strip() or None
+            else:
+                continue
+            if not path:
+                continue
+            gallery.append({"image": path, "title": title})
+    _upsert_block("gallery", gallery, label="Gallery")
+    return jsonify({"status": "ok", "state": _build_site_state()})
+
+
+@admin_bp.route("/site-designer/faq", methods=["POST"])
+@admin_required
+@csrf.exempt
+def site_designer_update_faq():
+    payload = _json_payload()
+    items = payload.get("items")
+    faq: list[dict[str, str]] = []
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            question = (item.get("question") or "").strip()
+            answer = (item.get("answer") or "").strip()
+            if not question or not answer:
+                continue
+            faq.append({"question": question, "answer": answer})
+    _upsert_block("faq", faq, label="FAQ")
+    return jsonify({"status": "ok", "state": _build_site_state()})
+
+
+@admin_bp.route("/site-designer/upload/image", methods=["POST"])
+@admin_required
+@csrf.exempt
+def site_designer_upload_image():
+    file = request.files.get("file")
+    section = (request.form.get("section") or "general").strip() or "general"
+    try:
+        path = _store_image(file, section=section)
+    except ValueError as exc:
+        abort(400, str(exc))
+    return jsonify({"status": "ok", "path": path, "url": _resolve_media_path(path)})
+
+
+@admin_bp.route("/site-designer/upload/document", methods=["POST"])
+@admin_required
+@csrf.exempt
+def site_designer_upload_document():
+    file = request.files.get("file")
+    if not file:
+        abort(400, "Arquivo obrigatório")
+    try:
+        filename = _store_document(file)
+    except ValueError as exc:
+        abort(400, str(exc))
+    doc = SiteDocument.query.filter_by(filename=filename).first()
+    if doc is None:
+        doc = SiteDocument(filename=filename)
+        db.session.add(doc)
+    payload = {
+        "display_name": request.form.get("display_name"),
+        "category": request.form.get("category"),
+        "description": request.form.get("description"),
+        "thumbnail_path": request.form.get("thumbnail_path"),
+        "is_featured": request.form.get("is_featured") in {"1", "true", "True", "on"},
+    }
+    metadata_raw = request.form.get("metadata")
+    if metadata_raw:
+        try:
+            payload["metadata"] = json.loads(metadata_raw)
+        except json.JSONDecodeError:
+            payload["metadata"] = None
+    _apply_document_payload(doc, payload)
+    db.session.commit()
+    return jsonify({"status": "ok", "state": _build_site_state()})
+
+
+@admin_bp.route("/site-designer/documents", methods=["POST"])
+@admin_required
+@csrf.exempt
+def site_designer_upsert_document():
+    payload = _json_payload()
+    filename = (payload.get("filename") or "").strip()
+    if not filename:
+        abort(400, "filename obrigatório")
+    doc = SiteDocument.query.filter_by(filename=filename).first()
+    if doc is None:
+        doc = SiteDocument(filename=filename)
+        db.session.add(doc)
+    _apply_document_payload(doc, payload)
+    db.session.commit()
+    return jsonify({"status": "ok", "state": _build_site_state()})
+
+
+@admin_bp.route("/site-designer/documents/<uuid:doc_id>", methods=["PATCH", "DELETE"])
+@admin_required
+@csrf.exempt
+def site_designer_document_detail(doc_id):
+    doc = SiteDocument.query.get_or_404(doc_id)
+    if request.method == "DELETE":
+        remove_file = request.args.get("remove_file") in {"1", "true", "True"}
+        filename = doc.filename
+        db.session.delete(doc)
+        db.session.commit()
+        if remove_file and filename:
+            pdf_path = _docs_root_path() / filename
+            if pdf_path.exists():
+                pdf_path.unlink()
+        return jsonify({"status": "ok", "state": _build_site_state()})
+
+    payload = _json_payload()
+    _apply_document_payload(doc, payload)
+    db.session.commit()
+    return jsonify({"status": "ok", "state": _build_site_state()})

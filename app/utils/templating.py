@@ -30,16 +30,26 @@ def register_template_globals(app: Flask) -> None:
 
 def _company_info() -> dict:
     cfg = current_app.config
+    data: dict[str, str] = {}
+    try:
+        from ..models import SiteContentBlock
+
+        block = SiteContentBlock.query.filter_by(slug="contacts").first()
+        if block and isinstance(block.data, dict):
+            data = {key: value for key, value in block.data.items() if isinstance(key, str)}
+    except Exception:  # pragma: no cover - defensive fallback
+        data = {}
+
     return {
-        "name": cfg.get("COMPANY_NAME"),
-        "phone": cfg.get("COMPANY_PHONE"),
-        "email": cfg.get("COMPANY_EMAIL"),
-        "address": cfg.get("COMPANY_ADDRESS"),
-        "whatsapp": cfg.get("COMPANY_WHATSAPP"),
-        "instagram": cfg.get("COMPANY_INSTAGRAM"),
-        "facebook": cfg.get("COMPANY_FACEBOOK"),
-        "linkedin": cfg.get("COMPANY_LINKEDIN"),
-        "map_embed": cfg.get("COMPANY_MAP_EMBED"),
+        "name": data.get("name") or cfg.get("COMPANY_NAME"),
+        "phone": data.get("phone") or cfg.get("COMPANY_PHONE"),
+        "email": data.get("email") or cfg.get("COMPANY_EMAIL"),
+        "address": data.get("address") or cfg.get("COMPANY_ADDRESS"),
+        "whatsapp": data.get("whatsapp") or cfg.get("COMPANY_WHATSAPP"),
+        "instagram": data.get("instagram") or cfg.get("COMPANY_INSTAGRAM"),
+        "facebook": data.get("facebook") or cfg.get("COMPANY_FACEBOOK"),
+        "linkedin": data.get("linkedin") or cfg.get("COMPANY_LINKEDIN"),
+        "map_embed": data.get("map_embed") or cfg.get("COMPANY_MAP_EMBED"),
     }
 
 

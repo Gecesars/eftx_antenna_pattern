@@ -15,6 +15,7 @@ Aplicação web completa para cadastro de antenas EFTX, composição de projetos
 - Projetos com parâmetros de composição vertical/horizontal e cálculo de ERP 0°-359°
 - Designer interativo com pré-visualização HRP/VRP e atualizações via API
 - Exportação automática de arquivos .PAT, .PRN e relatório PDF com gráficos
+- Aplicativos de RF com calculadoras para S-parâmetros, microfita, guias, cabos e difração integrados à UI autenticada
 
 ## Quick start
 1. `python -m venv .venv && .venv\Scripts\activate` (Windows) ou `source .venv/bin/activate`
@@ -33,3 +34,8 @@ Aplicação web completa para cadastro de antenas EFTX, composição de projetos
 6. `flask --app run.py run --host=0.0.0.0 --port=8000`
 
 Documentação adicional em `docs/SETUP.md`.
+
+## Aplicativos de RF
+- Rota autenticada: `/aplicativos-rf`.
+- Calculadoras: S-parâmetros, VSWR/RL/Γ, dB↔linear, microfita Hammerstad, guias retangulares, linha de transmissão, perda em cabos EFTX (PostgreSQL) e difração por borda de faca (ITU-R P.526).
+- Documentação: `docs/aplicativos-rf.md` com fórmulas e exemplos validados.

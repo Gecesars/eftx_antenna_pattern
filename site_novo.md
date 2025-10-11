@@ -26,3 +26,8 @@
 - O backup mantém páginas completas (`/content/pages/eftx.com.br/index.html?page_id=...`) com formulários WPForms (IDs 331 e 332 para PF/PJ).
 - Vídeos institucionais estão espelhados em `/content/video/eftx.com.br/wp-content/uploads/2021/01/` e `2024/10/`.
 - Scripts de animação (WOWSlider, Swiper, ScrollReveal) residem no tema e podem ser servidos via `site_asset` se necessário.
+
+## Painel do site (admin)
+- Rota `/admin/site-designer` disponível apenas para administradores; permite editar contatos, hero (texto/imagens), destaques, galeria, FAQ e metadados de datasheets.
+- Uploads de imagens ficam em `site_uploads/images/<secao>/`, servidos via `url_for('public_site.site_asset', filename='uploads/...')`.
+- PDFs continuam em `docs/`; o painel cria/atualiza registros `SiteDocument` para nomes, categorias, descrições e thumbnails customizadas.

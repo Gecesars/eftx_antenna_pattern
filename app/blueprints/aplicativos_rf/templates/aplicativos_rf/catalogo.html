@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block head_extra %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<style>
+  .rf-catalog .list-group-item.active {
+    background: linear-gradient(135deg, #0ea5e9, #2563eb);
+    border-color: #0ea5e9;
+    color: #fff;
+  }
+  .rf-catalog .list-group-item {
+    border-radius: 0.65rem;
+    margin-bottom: 0.4rem;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    color: #1f2937;
+  }
+  .rf-catalog .list-group-item:not(.active):hover {
+    background-color: rgba(14, 165, 233, 0.1);
+  }
+  .rf-catalog .calculator-card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .rf-catalog .calculator-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 18px 30px rgba(15, 23, 42, 0.16);
+  }
+  .rf-catalog .category-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+  .rf-catalog .get-app-buttons .btn {
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+  }
+  .rf-catalog .rf-footer-links {
+    background: #0f172a;
+    border-radius: 1rem;
+    color: #cbd5f5;
+  }
+  .rf-catalog .rf-footer-links a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .rf-catalog .rf-footer-links a:hover {
+    color: #38bdf8;
+  }
+  .rf-catalog .search-input {
+    border-radius: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid py-4 rf-catalog">
+  <div class="row g-4">
+    <aside class="col-md-3">
+      <div class="sticky-top" style="top: 84px;">
+        <div class="card shadow-sm border-0">
+          <div class="card-body">
+            <h2 class="h5 mb-3">Calculator Type</h2>
+            <div class="mb-3">
+              <label class="form-label" for="calculator-search">Search calculators</label>
+              <input type="search" id="calculator-search" class="form-control search-input" placeholder="Type to filter...">
+            </div>
+            <div class="list-group rf-filter-group mb-4">
+              {% for category in categories %}
+              <button type="button" class="list-group-item list-group-item-action{% if loop.first %} active{% endif %}" data-target="{{ category.id }}">
+                {{ category.title }}
+              </button>
+              {% endfor %}
+            </div>
+            <div class="mt-4">
+              <h3 class="h6 text-uppercase text-muted">Get the App</h3>
+              <div class="d-grid gap-2 mt-3 get-app-buttons">
+                <button type="button" class="btn btn-dark">
+                  <span class="fs-5">⟟</span>
+                  <span>
+                    <small class="text-uppercase d-block">Available on</small>
+                    <strong>Google Play</strong>
+                  </span>
+                </button>
+                <button type="button" class="btn btn-outline-secondary">
+                  <span class="fs-5"></span>
+                  <span>
+                    <small class="text-uppercase d-block">Download on</small>
+                    <strong>Apple Store</strong>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+    <div class="col-md-9">
+      {% for category in categories %}
+      <section id="{{ category.id }}" class="mb-5 rf-category-section" data-category-id="{{ category.id }}">
+        <div class="category-header">
+          <h3 class="h4 mb-0">{{ category.title }}</h3>
+          <a href="#top" class="small text-decoration-none text-primary">Back to top</a>
+        </div>
+        <div class="row g-3">
+          {% for item in category.items %}
+          <div class="col-12 col-md-6 calculator-wrapper">
+            <div class="card h-100 calculator-card" data-title="{{ item|lower }}">
+              <div class="card-body position-relative">
+                <div class="d-flex align-items-start">
+                  <span class="fs-3 me-3 text-primary">🧮</span>
+                  <div>
+                    <h4 class="h6 mb-1">{{ item }}</h4>
+                    <p class="text-muted small mb-0">Explore formulas, quick tips and ready-to-use examples.</p>
+                  </div>
+                </div>
+                <a class="stretched-link" href="#"></a>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endfor %}
+      <section class="rf-footer-links p-4 mt-5">
+        <div class="row g-3">
+          <div class="col-12 col-md-3">
+            <h5 class="text-uppercase small text-muted">Quick Links</h5>
+            <ul class="list-unstyled mb-0">
+              <li><a href="#">Documentation</a></li>
+              <li><a href="#">API Reference</a></li>
+              <li><a href="#">Support Portal</a></li>
+              <li><a href="#">Status Page</a></li>
+            </ul>
+          </div>
+          <div class="col-12 col-md-3">
+            <h5 class="text-uppercase small text-muted">Tools &amp; Resources</h5>
+            <ul class="list-unstyled mb-0">
+              <li><a href="#">Units Converter</a></li>
+              <li><a href="#">Design Guides</a></li>
+              <li><a href="#">Application Notes</a></li>
+              <li><a href="#">Knowledge Base</a></li>
+            </ul>
+          </div>
+          <div class="col-12 col-md-3">
+            <h5 class="text-uppercase small text-muted">Popular Categories</h5>
+            <ul class="list-unstyled mb-0">
+              <li><a href="#conversion-calculators">Conversion Calculators</a></li>
+              <li><a href="#rf-calculators">RF Calculators</a></li>
+              <li><a href="#antenna-calculators">Antenna Design</a></li>
+              <li><a href="#waveguide-calculators">Waveguide Tools</a></li>
+            </ul>
+          </div>
+          <div class="col-12 col-md-3">
+            <h5 class="text-uppercase small text-muted">Our Network</h5>
+            <ul class="list-unstyled mb-0">
+              <li><a href="#">Partner Program</a></li>
+              <li><a href="#">Training &amp; Workshops</a></li>
+              <li><a href="#">Community Forum</a></li>
+              <li><a href="#">Events &amp; Webinars</a></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
+<script defer src="{{ url_for('aplicativos_rf.static', filename='aplicativos_rf/js/catalog.js') }}"></script>
+{% endblock %}

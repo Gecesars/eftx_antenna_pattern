@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('aplicativos_rf.static', filename='aplicativos_rf/app_rf.css') }}">
+{% endblock %}
+{% block content %}
+<div class="rf-shell">
+    <aside class="rf-sidebar">
+        <h1>Aplicativos de RF</h1>
+        <p>Calculadoras técnicas para parâmetros de RF, micro-ondas e propagação, integradas ao catálogo de cabos EFTX.</p>
+        <nav>
+            <ul>
+                {% for calc_id, label in calculators %}
+                <li>
+                    <a href="#{{ calc_id }}" class="rf-link{% if active_calc == calc_id %} is-active{% endif %}" data-target="{{ calc_id }}">{{ label }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </nav>
+        <div class="rf-sidebar-footer">
+            <a class="rf-doc-link" href="{{ url_for('aplicativos_rf.docs') }}">📘 Saiba mais (docs/aplicativos-rf.md)</a>
+        </div>
+    </aside>
+    <section class="rf-main">
+        <article id="sparams" class="rf-card{% if active_calc == 'sparams' %} is-active{% endif %}">
+            <header>
+                <h2>Conversão de S-parâmetros</h2>
+                <button type="button" class="btn-demo" data-demo="sparams">Preencher com demo</button>
+            </header>
+            <p class="rf-note">Converte |S| entre linear/dB, calcula Γ, ρ, Return Loss e VSWR. Fórmula: <span class="rf-tooltip" data-tip="|S|₍dB₎ = 20·log₁₀|S|">?</span></p>
+            <form method="post" class="rf-form">
+                {{ forms['sparams'].hidden_tag() }}
+                <div class="rf-grid">
+                    <label>{{ forms['sparams'].magnitude_value.label }} {{ forms['sparams'].magnitude_value(size=10) }}</label>
+                    <label>{{ forms['sparams'].magnitude_unit.label }} {{ forms['sparams'].magnitude_unit() }}</label>
+                    <label>{{ forms['sparams'].phase_deg.label }} {{ forms['sparams'].phase_deg(size=10) }}</label>
+                </div>
+                <div class="rf-actions">
+                    {{ forms['sparams'].submit(class_='btn-primary') }}
+                    <button type="button" class="btn-copy" data-copy="#sparams-result">Copiar resultado</button>
+                    <a class="rf-doc-link" href="{{ url_for('aplicativos_rf.docs') }}#sparams">Saiba mais</a>
+                </div>
+            </form>
+            {% if resultados.get('sparams') %}
+            {% set res = resultados['sparams'] %}
+            <div class="rf-result" id="sparams-result">
+                <dl>
+                    <div><dt>|S| (linear)</dt><dd>{{ '%.6f'|format(res.linear) }}</dd></div>
+                    <div><dt>|S| (dB)</dt><dd>{{ '%.3f'|format(res.db) }} dB</dd></div>
+                    <div><dt>Fase</dt><dd>{{ '%.2f'|format(res.phase) }}° (norm. {{ '%.2f'|format(res.phase_normalized) }}°)</dd></div>
+                    <div><dt>|Γ| = ρ</dt><dd>{{ '%.6f'|format(res.gamma_mag) }}</dd></div>
+                    <div><dt>Γ (retangular)</dt><dd>{{ '%.6f'|format(res.gamma_complex.real) }} + j{{ '%.6f'|format(res.gamma_complex.imag) }}</dd></div>
+                    <div><dt>VSWR</dt><dd>{{ res.vswr_display }}</dd></div>
+                    <div><dt>Return Loss</dt><dd>{% if res.return_loss == 0 %}0 dB{% else %}{{ '%.3f'|format(res.return_loss) }} dB{% endif %}</dd></div>
+                    <div><dt>Mismatch loss</dt><dd>{{ res.mismatch_display }}</dd></div>
+                </dl>
+            </div>
+            {% endif %}
+        </article>
+
+        <article id="vswr" class="rf-card{% if active_calc == 'vswr' %} is-active{% endif %}">
+            <header>
+                <h2>VSWR ↔ Return Loss ↔ |Γ|</h2>
+                <button type="button" class="btn-demo" data-demo="vswr">Preencher com demo</button>
+            </header>
+            <p class="rf-note">VSWR = (1+|Γ|)/(1-|Γ|), RL = -20·log₁₀|Γ| <span class="rf-tooltip" data-tip="Use valores de VSWR ≥ 1 e |Γ| &lt; 1">?</span></p>
+            <form method="post" class="rf-form">
+                {{ forms['vswr'].hidden_tag() }}
+                <div class="rf-grid">
+                    <label>{{ forms['vswr'].input_kind.label }} {{ forms['vswr'].input_kind() }}</label>
+                    <label>{{ forms['vswr'].value.label }} {{ forms['vswr'].value(size=12) }}</label>
+                </div>
+                <div class="rf-actions">
+                    {{ forms['vswr'].submit(class_='btn-primary') }}
+                    <button type="button" class="btn-copy" data-copy="#vswr-result">Copiar resultado</button>
+                    <a class="rf-doc-link" href="{{ url_for('aplicativos_rf.docs') }}#vswr">Saiba mais</a>
+                </div>
+            </form>
+            {% if resultados.get('vswr') %}
+            {% set res = resultados['vswr'] %}
+            <div class="rf-result" id="vswr-result">
+                <dl>
+                    <div><dt>VSWR</dt><dd>{{ '%.4f'|format(res.vswr) }}</dd></div>
+                    <div><dt>|Γ|</dt><dd>{{ '%.6f'|format(res.gamma) }}</dd></div>
+                    <div><dt>Return Loss</dt><dd>{{ '%.3f'|format(res.return_loss) }} dB</dd></div>
+                    <div><dt>Mismatch loss</dt><dd>{% if res.mismatch == float('inf') %}—{% else %}{{ '%.3f'|format(res.mismatch) }} dB{% endif %}</dd></div>
+                </dl>
+            </div>
+            {% endif %}
+        </article>
+
+        <article id="dblinear" class="rf-card{% if active_calc == 'dblinear' %} is-active{% endif %}">
+            <header>
+                <h2>Conversão dB ↔ módulo</h2>
+                <button type="button" class="btn-demo" data-demo="dblinear">Preencher com demo</button>
+            </header>
+            <p class="rf-note">Amplitude: 20·log₁₀(x). Potência: 10·log₁₀(x). Útil para perdas/ganhos de inserção.</p>
+            <form method="post" class="rf-form">
+                {{ forms['dblinear'].hidden_tag() }}
+                <div class="rf-grid">
+                    <label>{{ forms['dblinear'].direction.label }} {{ forms['dblinear'].direction() }}</label>
+                    <label>{{ forms['dblinear'].magnitude_kind.label }} {{ forms['dblinear'].magnitude_kind() }}</label>
+                    <label>{{ forms['dblinear'].value.label }} {{ forms['dblinear'].value(size=12) }}</label>
+                </div>
+                <div class="rf-actions">
+                    {{ forms['dblinear'].submit(class_='btn-primary') }}
+                    <button type="button" class="btn-copy" data-copy="#dblinear-result">Copiar resultado</button>
+                    <a class="rf-doc-link" href="{{ url_for('aplicativos_rf.docs') }}#db-linear">Saiba mais</a>
+                </div>
+            </form>
+            {% if resultados.get('dblinear') %}
+            {% set res = resultados['dblinear'] %}
+            <div class="rf-result" id="dblinear-result">
+                <dl>
+                    <div><dt>Valor (dB)</dt><dd>{{ '%.4f'|format(res.db) }} dB</dd></div>
+                    <div><dt>Valor (linear)</dt><dd>{{ '%.6f'|format(res.linear) }}</dd></div>
+                    <div><dt>Modo</dt><dd>{{ 'Amplitude' if res.kind == 'amplitude' else 'Potência' }}</dd></div>
+                </dl>
+            </div>
+            {% endif %}
+        </article>
+
+        <article id="microstrip" class="rf-card{% if active_calc == 'microstrip' %} is-active{% endif %}">
+            <header>
+                <h2>Microfita (Hammerstad &amp; Jensen)</h2>
+                <button type="button" class="btn-demo" data-demo="microstrip">Preencher com demo</button>
+            </header>
+            <p class="rf-note">Resolução iterativa de W/h para Z₀ alvo. Validade aproximada para 0,1 ≤ W/h ≤ 20.</p>
+            <form method="post" class="rf-form">
+                {{ forms['microstrip'].hidden_tag() }}
+                <div class="rf-grid rf-grid-2">
+                    <label>{{ forms['microstrip'].relative_permittivity.label }} {{ forms['microstrip'].relative_permittivity(size=8) }}</label>
+                    <label>{{ forms['microstrip'].target_impedance.label }} {{ forms['microstrip'].target_impedance(size=8) }}</label>
+                    <label>{{ forms['microstrip'].substrate_height_value.label }} {{ forms['microstrip'].substrate_height_value(size=8) }}</label>
+                    <label>{{ forms['microstrip'].substrate_height_unit.label }} {{ forms['microstrip'].substrate_height_unit() }}</label>
+                    <label>{{ forms['microstrip'].conductor_thickness_value.label }} {{ forms['microstrip'].conductor_thickness_value(size=8) }}</label>
+                    <label>{{ forms['microstrip'].conductor_thickness_unit.label }} {{ forms['microstrip'].conductor_thickness_unit() }}</label>
+                </div>
+                <div class="rf-actions">
+                    {{ forms['microstrip'].submit(class_='btn-primary') }}
+                    <button type="button" class="btn-copy" data-copy="#microstrip-result">Copiar resultado</button>
+                    <a class="rf-doc-link" href="{{ url_for('aplicativos_rf.docs') }}#microstrip">Saiba mais</a>
+                </div>
+            </form>
+            {% if resultados.get('microstrip') %}
+            {% set res = resultados['microstrip'] %}
+            <div class="rf-result" id="microstrip-result">
+                <dl>
+                    <div><dt>Largura W</dt><dd>{{ '%.3f'|format(res.width_mm) }} mm</dd></div>
+                    <div><dt>W/h</dt><dd>{{ '%.4f'|format(res.width_h) }}</dd></div>
+                    <div><dt>ε_eff</dt><dd>{{ '%.4f'|format(res.effective_eps) }}</dd></div>
+                </dl>
+                {% if res.warnings %}
+                <ul class="rf-warning">
+                    {% for warn in res.warnings %}
+                    <li>{{ warn }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endif %}
+        </article>
+
+        <article id="waveguide" class="rf-card{% if active_calc == 'waveguide' %} is-active{% endif %}">
+            <header>
+                <h2>Guias de onda retangulares</h2>
+                <button type="button" class="btn-demo" data-demo="waveguide">Preencher com demo</button>
+            </header>
+            <p class="rf-note">f<sub>c</sub> = (c/2)·√[(m/a)² + (n/b)²]. Para TM, m,n ≥ 1.</p>
+            <form method="post" class="rf-form">
+                {{ forms['waveguide'].hidden_tag() }}
+                <div class="rf-grid rf-grid-2">
+                    <label>{{ forms['waveguide'].mode.label }} {{ forms['waveguide'].mode() }}</label>
+                    <label>{{ forms['waveguide'].index_m.label }} {{ forms['waveguide'].index_m(size=6) }}</label>
+                    <label>{{ forms['waveguide'].index_n.label }} {{ forms['waveguide'].index_n(size=6) }}</label>
+                    <label>{{ forms['waveguide'].dimension_a_value.label }} {{ forms['waveguide'].dimension_a_value(size=8) }}</label>
+                    <label>{{ forms['waveguide'].dimension_a_unit.label }} {{ forms['waveguide'].dimension_a_unit() }}</label>
+                    <label>{{ forms['waveguide'].dimension_b_value.label }} {{ forms['waveguide'].dimension_b_value(size=8) }}</label>
+                    <label>{{ forms['waveguide'].dimension_b_unit.label }} {{ forms['waveguide'].dimension_b_unit() }}</label>
+                    <label>{{ forms['waveguide'].frequency_value.label }} {{ forms['waveguide'].frequency_value(size=8) }}</label>
+                    <label>{{ forms['waveguide'].frequency_unit.label }} {{ forms['waveguide'].frequency_unit() }}</label>
+                </div>
+                <div class="rf-actions">
+                    {{ forms['waveguide'].submit(class_='btn-primary') }}
+                    <button type="button" class="btn-copy" data-copy="#waveguide-result">Copiar resultado</button>
+                    <a class="rf-doc-link" href="{{ url_for('aplicativos_rf.docs') }}#waveguide">Saiba mais</a>
+                </div>
+            </form>
+            {% if resultados.get('waveguide') %}
+            {% set res = resultados['waveguide'] %}
+            <div class="rf-result" id="waveguide-result">
+                <dl>
+                    <div><dt>f<sub>c</sub></dt><dd>{{ '%.4f'|format(res.summary.cutoff_ghz) }} GHz</dd></div>
+                    <div><dt>Modo</dt><dd>{{ res.summary.mode }}</dd></div>
+                    <div><dt>Status</dt><dd>{{ res.summary.guidance or ('Modo propagante' if res.summary.propagates else 'Modo evanescente') }}</dd></div>
+                </dl>
+                {% if res.propagation %}
+                <dl>
+                    <div><dt>λ₀</dt><dd>{{ '%.3f'|format(res.propagation.wavelength_free_space_m) }} m</dd></div>
+                    {% if res.propagation.guide_wavelength_m %}
+                    <div><dt>λ<sub>g</sub></dt><dd>{{ '%.3f'|format(res.propagation.guide_wavelength_m) }} m</dd></div>
+                    <div><dt>β</dt><dd>{{ '%.4f'|format(res.propagation.phase_constant_rad_m) }} rad/m</dd></div>
+                    {% endif %}
+                </dl>
+                {% endif %}
+            </div>
+            {% endif %}
+        </article>
+
+        <article id="lines" class="rf-card{% if active_calc == 'lines' %} is-active{% endif %}">
+            <header>
+                <h2>Linha de transmissão</h2>
+                <button type="button" class="btn-demo" data-demo="lines">Preencher com demo</button>
+            </header>
+            <p class="rf-note">Conversão entre comprimento físico e fase elétrica usando vf ou ε_eff.</p>
+            <form method="post" class="rf-form">
+                {{ forms['lines'].hidden_tag() }}
+                <div class="rf-grid rf-grid-2">
+                    <label>{{ forms['lines'].mode.label }} {{ forms['lines'].mode() }}</label>
+                    <label>{{ forms['lines'].frequency_value.label }} {{ forms['lines'].frequency_value(size=8) }}</label>
+                    <label>{{ forms['lines'].frequency_unit.label }} {{ forms['lines'].frequency_unit() }}</label>
+                    <label>{{ forms['lines'].length_value.label }} {{ forms['lines'].length_value(size=8) }}</label>
+                    <label>{{ forms['lines'].length_unit.label }} {{ forms['lines'].length_unit() }}</label>
+                    <label>{{ forms['lines'].phase_value.label }} {{ forms['lines'].phase_value(size=8) }}</label>
+                    <label>{{ forms['lines'].velocity_factor.label }} {{ forms['lines'].velocity_factor(size=8) }}</label>
+                    <label>{{ forms['lines'].eps_eff.label }} {{ forms['lines'].eps_eff(size=8) }}</label>
+                </div>
+                <div class="rf-actions">
+                    {{ forms['lines'].submit(class_='btn-primary') }}
+                    <button type="button" class="btn-copy" data-copy="#lines-result">Copiar resultado</button>
+                    <a class="rf-doc-link" href="{{ url_for('aplicativos_rf.docs') }}#linhas">Saiba mais</a>
+                </div>
+            </form>
+            {% if resultados.get('lines') %}
+            {% set res = resultados['lines'] %}
+            <div class="rf-result" id="lines-result">
+                <dl>
+                    <div><dt>Comprimento</dt><dd>{{ '%.4f'|format(res.length_display.m) }} m ({{ '%.2f'|format(res.length_display.cm) }} cm)</dd></div>
+                    <div><dt>Fase</dt><dd>{{ '%.2f'|format(res.phase_deg) }}°</dd></div>
+                    <div><dt>λ<sub>g</sub></dt><dd>{{ '%.4f'|format(res.guided_wavelength_m) }} m</dd></div>
+                    <div><dt>β</dt><dd>{{ '%.5f'|format(res.beta) }} rad/m</dd></div>
+                    <div><dt>v<sub>p</sub></dt><dd>{{ '{:,.0f}'.format(res.propagation_velocity) }} m/s</dd></div>
+                </dl>
+            </div>
+            {% endif %}
+        </article>
+
+        <article id="cables" class="rf-card{% if active_calc == 'cables' %} is-active{% endif %}">
+            <header>
+                <h2>Perda total no cabo EFTX</h2>
+                <button type="button" class="btn-demo" data-demo="cables">Preencher com demo</button>
+            </header>
+            <p class="rf-note">Consulta curva de atenuação (dB/100 m) do catálogo PostgreSQL e aplica interpolação log-log.</p>
+            <form method="post" class="rf-form">
+                {{ forms['cables'].hidden_tag() }}
+                <div class="rf-grid rf-grid-2">
+                    <label>{{ forms['cables'].cable_id.label }} {{ forms['cables'].cable_id() }}</label>
+                    <label>{{ forms['cables'].frequency_value.label }} {{ forms['cables'].frequency_value(size=8) }}</label>
+                    <label>{{ forms['cables'].frequency_unit.label }} {{ forms['cables'].frequency_unit() }}</label>
+                    <label>{{ forms['cables'].length_value.label }} {{ forms['cables'].length_value(size=8) }}</label>
+                    <label>{{ forms['cables'].length_unit.label }} {{ forms['cables'].length_unit() }}</label>
+                    <label class="rf-grid-span">{{ forms['cables'].connectors_losses.label }} {{ forms['cables'].connectors_losses(rows=3, cols=40, placeholder='0.2,0.15') }}</label>
+                </div>
+                <div class="rf-actions">
+                    {{ forms['cables'].submit(class_='btn-primary') }}
+                    <button type="button" class="btn-copy" data-copy="#cables-result">Copiar resultado</button>
+                    <a class="rf-doc-link" href="{{ url_for('aplicativos_rf.docs') }}#cabos">Saiba mais</a>
+                </div>
+            </form>
+            {% if resultados.get('cables') %}
+            {% set res = resultados['cables'] %}
+            {% set det = res.detalhes %}
+            <div class="rf-result" id="cables-result">
+                <dl>
+                    <div><dt>Cabo</dt><dd>{{ det.cabo.display_name }} ({{ det.cabo.model_code }})</dd></div>
+                    <div><dt>Frequência</dt><dd>{{ '%.3f'|format(det.frequencia_hz / 1e6) }} MHz</dd></div>
+                    <div><dt>Comprimento</dt><dd>{{ '%.2f'|format(det.comprimento_m) }} m</dd></div>
+                    <div><dt>Atenuação curva</dt><dd>{{ '%.3f'|format(det.atenuacao_db_por_100m) }} dB / 100 m ({{ det.origem }})</dd></div>
+                    <div><dt>Perda no cabo</dt><dd>{{ '%.3f'|format(det.perda_cabo_db) }} dB</dd></div>
+                    <div><dt>Perdas conectores</dt><dd>{{ '%.3f'|format(det.perda_conectores_db) }} dB</dd></div>
+                    <div><dt>Total</dt><dd>{{ '%.3f'|format(det.perda_total_db) }} dB</dd></div>
+                    {% if det.velocity_factor %}
+                    <div><dt>Fator de velocidade</dt><dd>{{ '%.3f'|format(det.velocity_factor) }}</dd></div>
+                    {% endif %}
+                </dl>
+                <table class="rf-table">
+                    <thead><tr><th>Pontos de apoio</th><th>Atenuação (dB/100 m)</th></tr></thead>
+                    <tbody>
+                        {% for ponto in det.pontos %}
+                        <tr>
+                            <td>{{ '%.3f'|format(ponto.frequencia_hz / 1e6) }} MHz</td>
+                            <td>{{ '%.3f'|format(ponto.atenuacao_db_por_100m) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% if det.extrapolado %}
+                <p class="rf-warning">⚠️ Frequência fora da faixa cadastrada. Resultado obtido por extrapolação.</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </article>
+
+        <article id="knife" class="rf-card{% if active_calc == 'knife' %} is-active{% endif %}">
+            <header>
+                <h2>Difração por borda de faca (ITU-R P.526)</h2>
+                <button type="button" class="btn-demo" data-demo="knife">Preencher com demo</button>
+            </header>
+            <p class="rf-note">v = h·√(2/λ · (d₁ + d₂)/(d₁·d₂)). L<sub>d</sub>(v) = 0 (v ≤ -0,7) ou 6,9 + 20·log₁₀(...).</p>
+            <form method="post" class="rf-form">
+                {{ forms['knife'].hidden_tag() }}
+                <div class="rf-grid rf-grid-2">
+                    <label>{{ forms['knife'].frequency_value.label }} {{ forms['knife'].frequency_value(size=8) }}</label>
+                    <label>{{ forms['knife'].frequency_unit.label }} {{ forms['knife'].frequency_unit() }}</label>
+                    <label>{{ forms['knife'].d1_value.label }} {{ forms['knife'].d1_value(size=8) }}</label>
+                    <label>{{ forms['knife'].d1_unit.label }} {{ forms['knife'].d1_unit() }}</label>
+                    <label>{{ forms['knife'].d2_value.label }} {{ forms['knife'].d2_value(size=8) }}</label>
+                    <label>{{ forms['knife'].d2_unit.label }} {{ forms['knife'].d2_unit() }}</label>
+                    <label>{{ forms['knife'].tx_height.label }} {{ forms['knife'].tx_height(size=8) }}</label>
+                    <label>{{ forms['knife'].rx_height.label }} {{ forms['knife'].rx_height(size=8) }}</label>
+                    <label>{{ forms['knife'].obstacle_height.label }} {{ forms['knife'].obstacle_height(size=8) }}</label>
+                </div>
+                <div class="rf-actions">
+                    {{ forms['knife'].submit(class_='btn-primary') }}
+                    <button type="button" class="btn-copy" data-copy="#knife-result">Copiar resultado</button>
+                    <a class="rf-doc-link" href="{{ url_for('aplicativos_rf.docs') }}#knife-edge">Saiba mais</a>
+                </div>
+            </form>
+            {% if resultados.get('knife') %}
+            {% set res = resultados['knife'] %}
+            {% set r = res.result %}
+            <div class="rf-result" id="knife-result">
+                <dl>
+                    <div><dt>v</dt><dd>{{ '%.3f'|format(r.v) }}</dd></div>
+                    <div><dt>L<sub>d</sub></dt><dd>{{ '%.3f'|format(r.loss_db) }} dB</dd></div>
+                    <div><dt>Clearance</dt><dd>{{ '%.2f'|format(r.clearance_m) }} m ({{ '%.2f'|format(r.clearance_ratio) }} · r₁)</dd></div>
+                    <div><dt>r₁</dt><dd>{{ '%.2f'|format(r.fresnel_radius_m) }} m</dd></div>
+                </dl>
+                <p>{{ r.guidance }}</p>
+                {% if res.plot %}
+                <img class="rf-plot" src="{{ res.plot }}" alt="Gráfico Ld(v)">
+                {% endif %}
+            </div>
+            {% endif %}
+        </article>
+    </section>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script defer src="{{ url_for('aplicativos_rf.static', filename='aplicativos_rf/js/app_rf.js') }}"></script>
+{% endblock %}

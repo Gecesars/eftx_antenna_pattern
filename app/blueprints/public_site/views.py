@@ -13,6 +13,7 @@ from flask import Blueprint, abort, current_app, jsonify, render_template, reque
 
 from ...core import discover_site_root, list_local_images, load_products_from_site, list_pdfs_from_docs
 from ...extensions import csrf
+from ...models import SiteContentBlock, SiteDocument
 from ...utils.cookies import set_consent
 from ...services.knowledge_base import retrieve_contexts
 
@@ -39,6 +40,149 @@ QUICK_INTENTS: list[tuple[tuple[str, ...], str]] = [
 ]
 
 
+DEFAULT_HERO_PROMOS: list[dict[str, str]] = [
+    {
+        "title": "Cobertura perfeita para quem transmite confiança",
+        "description": (
+            "Da análise do cenário ao comissionamento, a EFTX entrega sistemas de antenas, enlaces e infraestrutura "
+            "de telecom com eficiência comprovada em todo o Brasil e América Latina."
+        ),
+    },
+    {
+        "title": "Engenharia aplicada do laboratório ao topo da torre",
+        "description": (
+            "Simulamos, fabricamos e validamos cada sistema com ensaios de campo, memorial técnico completo e "
+            "prontidão para homologações."
+        ),
+    },
+    {
+        "title": "Arrays multiantena calibrados para ERP de referência",
+        "description": (
+            "Nossa stack numérica controla tilt, perdas e ripple para entregar diagramas alinhados às normas de FM, "
+            "TV digital e enlaces licenciados."
+        ),
+    },
+    {
+        "title": "Suporte contínuo com equipes em todo o país",
+        "description": (
+            "Squads regionais, telemetria e estoque dedicado garantem resposta rápida para expandir, manter e modernizar "
+            "seu parque irradiador."
+        ),
+    },
+]
+
+
+DEFAULT_HIGHLIGHTS: list[dict[str, str]] = [
+    {
+        "title": "Engenharia 360°",
+        "description": "Planejamento, modelagem ERP, memorial, implantação e suporte pós-start-up em um mesmo fluxo."},
+    {
+        "title": "Laboratório homologado",
+        "description": "Ensaios de VSWR, combinadores, filtros e validações ambientais garantem desempenho em campo."},
+    {
+        "title": "Stack numérica proprietária",
+        "description": "Ferramentas internas para parsing, composição e exportação (.PAT/.PRN/.PDF) com métricas HPBW, diretividade, SLL."},
+    {
+        "title": "Atendimento nacional",
+        "description": "26 anos de atuação, 700+ sistemas instalados e equipes residentes em 12 estados garantindo SLA."},
+    {
+        "title": "Integrações inteligentes",
+        "description": "Assistente IA, automação de exportações e webhooks WhatsApp agilizam tomada de decisão e suporte."},
+]
+
+
+DEFAULT_FAQ: list[dict[str, str]] = [
+    {
+        "question": "Quais segmentos a EFTX atende?",
+        "answer": "A home destaca projetos para broadcast, telecom, energia, defesa & segurança e IoT/Smart Cities, com atuação nacional.",
+    },
+    {
+        "question": "Que serviços integrados o site descreve?",
+        "answer": "Planejamento e engenharia, fabricação e supply próprios, integração em campo (VSWR, laudos) e gestão/suporte contínuo com SLAs definidos.",
+    },
+    {
+        "question": "Como acessar produtos e documentação técnica?",
+        "answer": "Os PDFs em /produtos trazem datasheets por categoria e a biblioteca /downloads lista guias técnicos com tamanho e data atualizados.",
+    },
+    {
+        "question": "Como funcionam os projetos de referência?",
+        "answer": "O bloco Projetos de Referência apresenta cenários EFTX para Broadcast FM, TV Digital e Telecom Carrier com métricas calculadas pela engenharia (ERP, HPBW, tilt, disponibilidade) e links para solicitar estudos dedicados.",
+    },
+    {
+        "question": "Quais são os diferenciais técnicos da EFTX?",
+        "answer": "Know-how 360° com engenharia, laboratório próprio, stack numérica proprietária, homologações Anatel/ITU e assistência contínua com times residentes em 12 estados.",
+    },
+]
+
+
+def _block_data(slug: str):
+    try:
+        block = SiteContentBlock.query.filter_by(slug=slug).first()
+    except Exception:
+        return None
+    return block.data if block else None
+
+
+def _block_list(slug: str) -> list[dict]:
+    data = _block_data(slug)
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)]
+    return []
+
+
+def _resolve_media_path(path: str | None) -> str | None:
+    if not path:
+        return None
+    if path.startswith(("http://", "https://", "/")):
+        return path
+    return url_for("public_site.site_asset", filename=path)
+
+
+def _normalized_image_entries(data: list[dict]) -> list[dict[str, str | None]]:
+    entries: list[dict[str, str | None]] = []
+    for item in data:
+        if isinstance(item, str):
+            src = item
+            title = None
+        else:
+            src = item.get("image") or item.get("path") or item.get("src")
+            title = item.get("title") or item.get("label")
+        resolved = _resolve_media_path(src)
+        if resolved:
+            entries.append({"image": resolved, "title": title})
+    return entries
+
+
+def _normalize_promos(data: list[dict]) -> list[dict[str, str | None]]:
+    promos: list[dict[str, str | None]] = []
+    for item in data:
+        title = (item.get("title") or "").strip()
+        if not title:
+            continue
+        promos.append(
+            {
+                "title": title,
+                "description": (item.get("description") or "").strip(),
+                "image": item.get("image") or item.get("media") or item.get("cover"),
+            }
+        )
+    return promos
+
+
+def _documents_lookup() -> dict[str, SiteDocument]:
+    try:
+        docs = SiteDocument.query.all()
+    except Exception:
+        return {}
+    mapping: dict[str, SiteDocument] = {}
+    for doc in docs:
+        fname = (doc.filename or "").lower()
+        if fname:
+            mapping[fname] = doc
+        mapping.setdefault(doc.slug.lower(), doc)
+    return mapping
+
+
 @public_site_bp.route("/")
 def home() -> str:
     site_root = discover_site_root()
@@ -60,61 +204,62 @@ def home() -> str:
     hero_slider_images = _wowslider_images()
     gallery_images = _institutional_gallery() or hero_slides
 
-    hero_images_candidates = hero_slider_images + [slide.get("image") for slide in hero_slides if slide.get("image")]
+    default_promos = [dict(item) for item in DEFAULT_HERO_PROMOS]
+
+    custom_promos = _normalize_promos(_block_list("hero_promos"))
+    hero_promos = custom_promos or default_promos
+
+    hero_image_entries = _normalized_image_entries(_block_list("hero_images"))
+    hero_image_entries.extend({"image": url, "title": None} for url in hero_slider_images)
+    hero_image_entries.extend(
+        {
+            "image": _resolve_media_path(slide.get("image")),
+            "title": slide.get("title"),
+        }
+        for slide in hero_slides
+        if slide.get("image")
+    )
+    hero_image_entries.extend(
+        {
+            "image": _resolve_media_path(promo.get("image")),
+            "title": promo.get("title"),
+        }
+        for promo in hero_promos
+        if promo.get("image")
+    )
+
     seen_images: set[str] = set()
-    hero_images = []
-    for image in hero_images_candidates:
-        if not image or image in seen_images:
+    hero_images: list[dict[str, str | None]] = []
+    for entry in hero_image_entries:
+        url = entry.get("image")
+        if not url or url in seen_images:
             continue
-        seen_images.add(image)
-        hero_images.append(image)
+        seen_images.add(url)
+        hero_images.append({"image": url, "title": entry.get("title")})
     if not hero_images:
-        hero_images = [item.get("image") for item in gallery_images if item.get("image")]
+        hero_images = [
+            {"image": item.get("image"), "title": item.get("category")}
+            for item in gallery_images
+            if item.get("image")
+        ]
 
     try:
         hero_fallback = url_for("public_site.site_asset", filename="IMA/logo-site.png")
     except BuildError:
         hero_fallback = url_for("static", filename="img/logo.png")
 
-    hero_promos = [
-        {
-            "title": "Cobertura perfeita para quem transmite confiança",
-            "description": (
-                "Da análise do cenário ao comissionamento, a EFTX entrega sistemas de antenas, enlaces e infraestrutura "
-                "de telecom com eficiência comprovada em todo o Brasil e América Latina."
-            ),
-        },
-        {
-            "title": "Engenharia aplicada do laboratório ao topo da torre",
-            "description": (
-                "Simulamos, fabricamos e validamos cada sistema com ensaios de campo, memorial técnico completo e "
-                "prontidão para homologações."
-            ),
-        },
-        {
-            "title": "Arrays multiantena calibrados para ERP de referência",
-            "description": (
-                "Nossa stack numérica controla tilt, perdas e ripple para entregar diagramas alinhados às normas de FM, "
-                "TV digital e enlaces licenciados."
-            ),
-        },
-        {
-            "title": "Suporte contínuo com equipes em todo o país",
-            "description": (
-                "Squads regionais, telemetria e estoque dedicado garantem resposta rápida para expandir, manter e modernizar "
-                "seu parque irradiador."
-            ),
-        },
-    ]
-
     hero_sequences: list[dict[str, str]] = []
     for idx, promo in enumerate(hero_promos):
-        image = hero_images[idx % len(hero_images)] if hero_images else hero_fallback
-        hero_sequences.append({
-            "title": promo["title"],
-            "description": promo["description"],
-            "image": image,
-        })
+        image_candidate = _resolve_media_path(promo.get("image")) if promo.get("image") else None
+        if not image_candidate and hero_images:
+            image_candidate = hero_images[idx % len(hero_images)]["image"]
+        hero_sequences.append(
+            {
+                "title": promo.get("title", ""),
+                "description": promo.get("description", ""),
+                "image": image_candidate or hero_fallback,
+            }
+        )
 
     initial_hero = hero_sequences[0] if hero_sequences else {
         "title": hero_promos[0]["title"],
@@ -271,12 +416,17 @@ def site_asset(filename: str):
     site_root = discover_site_root()
     project_root = Path(current_app.root_path).parent
     local_root = project_root / "IMA"
+    upload_root = project_root / current_app.config.get("SITE_UPLOAD_ROOT", "site_uploads")
 
     candidates: list[tuple[Path, Path]] = []
 
     if filename.startswith("IMA/"):
         relative = Path(filename[4:])
         candidates.append((local_root, relative))
+
+    if filename.startswith("uploads/"):
+        relative = Path(filename.split("/", 1)[1]) if "/" in filename else Path(filename[8:])
+        candidates.append((upload_root, relative))
 
     if site_root:
         rel = Path(filename)
@@ -454,6 +604,8 @@ def _page_meta(*, title: str, description: str, url: str) -> dict:
 
 
 def _enrich_downloads(items: list[dict]) -> list[dict]:
+    documents = _documents_lookup()
+    resolve_media = _resolve_media_path
     enriched = []
     for item in items:
         size_label = _human_size(item.get("size_bytes", 0))
@@ -462,11 +614,29 @@ def _enrich_downloads(items: list[dict]) -> list[dict]:
             modified_label = modified.strftime("%d/%m/%Y")
         else:
             modified_label = "—"
+        doc_meta = documents.get((item.get("filename") or "").lower())
+        name = item.get("name")
+        description = item.get("description")
+        category = item.get("category")
+        thumbnail_url = None
+        if doc_meta:
+            if doc_meta.display_name:
+                name = doc_meta.display_name
+            if doc_meta.description:
+                description = doc_meta.description
+            if doc_meta.category:
+                category = doc_meta.category
+            if doc_meta.thumbnail_path:
+                thumbnail_url = resolve_media(doc_meta.thumbnail_path)
         enriched.append(
             {
                 **item,
+                "name": name,
+                "description": description,
+                "category": category,
                 "size_label": size_label,
                 "modified_label": modified_label,
+                "thumbnail_url": thumbnail_url,
                 "download_url": url_for("public_site.download_file", filename=item["path_rel"]),
             }
         )
@@ -484,22 +654,28 @@ def _human_size(num_bytes: int) -> str:
 
 def _contact_info() -> dict:
     cfg = current_app.config
+    data = _block_data("contacts")
+    if not isinstance(data, dict):
+        data = {}
     return {
-        "name": cfg.get("COMPANY_NAME"),
-        "phone": cfg.get("COMPANY_PHONE"),
-        "email": cfg.get("COMPANY_EMAIL"),
-        "address": cfg.get("COMPANY_ADDRESS"),
-        "whatsapp": cfg.get("COMPANY_WHATSAPP"),
-        "map_embed": cfg.get("COMPANY_MAP_EMBED"),
+        "name": data.get("name") or cfg.get("COMPANY_NAME"),
+        "phone": data.get("phone") or cfg.get("COMPANY_PHONE"),
+        "email": data.get("email") or cfg.get("COMPANY_EMAIL"),
+        "address": data.get("address") or cfg.get("COMPANY_ADDRESS"),
+        "whatsapp": data.get("whatsapp") or cfg.get("COMPANY_WHATSAPP"),
+        "map_embed": data.get("map_embed") or cfg.get("COMPANY_MAP_EMBED"),
+        "instagram": data.get("instagram") or cfg.get("COMPANY_INSTAGRAM"),
+        "facebook": data.get("facebook") or cfg.get("COMPANY_FACEBOOK"),
+        "linkedin": data.get("linkedin") or cfg.get("COMPANY_LINKEDIN"),
     }
 
 
 def _social_links() -> list[dict[str, str]]:
-    cfg = current_app.config
+    info = _contact_info()
     links = [
-        ("instagram", cfg.get("COMPANY_INSTAGRAM")),
-        ("facebook", cfg.get("COMPANY_FACEBOOK")),
-        ("linkedin", cfg.get("COMPANY_LINKEDIN")),
+        ("instagram", info.get("instagram")),
+        ("facebook", info.get("facebook")),
+        ("linkedin", info.get("linkedin")),
     ]
     return [
         {"network": network, "url": url}
@@ -597,52 +773,40 @@ def _site_faq() -> list[dict[str, str]]:
     email = contact.get("email") or "contato@eftx.com.br"
     whatsapp = contact.get("whatsapp") or "https://wa.me/5519998537007"
 
-    return [
-        {
-            "question": "Quais segmentos a EFTX atende?",
-            "answer": "A home destaca projetos para broadcast, telecom, energia, defesa & segurança e IoT/Smart Cities, com atuação nacional.",
-        },
-        {
-            "question": "Que serviços integrados o site descreve?",
-            "answer": "Planejamento e engenharia, fabricação e supply próprios, integração em campo (VSWR, laudos) e gestão/suporte contínuo com SLAs definidos.",
-        },
-        {
-            "question": "Como acessar produtos e documentação técnica?",
-            "answer": "Os PDFs em /produtos trazem datasheets por categoria e a biblioteca /downloads lista guias técnicos com tamanho e data atualizados.",
-        },
-        {
-            "question": "Como funcionam os projetos de referência?",
-            "answer": "O bloco Projetos de Referência apresenta cenários EFTX para Broadcast FM, TV Digital e Telecom Carrier com métricas calculadas pela engenharia (ERP, HPBW, tilt, disponibilidade) e links para solicitar estudos dedicados.",
-        },
-        {
-            "question": "Quais são os diferenciais técnicos da EFTX?",
-            "answer": "Know-how 360° com engenharia, laboratório próprio, stack numérica proprietária, homologações Anatel/ITU e assistência contínua com times residentes em 12 estados.",
-        },
+    custom = []
+    for item in _block_list("faq"):
+        question = (item.get("question") or "").strip()
+        answer = (item.get("answer") or "").strip()
+        if question and answer:
+            custom.append({"question": question, "answer": answer})
+    if custom:
+        return custom
+
+    faq_items = [dict(item) for item in DEFAULT_FAQ]
+    faq_items.append(
         {
             "question": "Quais são os canais oficiais de contato?",
             "answer": f"Telefone {phone}, e-mail {email} e WhatsApp institucional {whatsapp}; o formulário de /contato envia mensagens diretamente à equipe.",
-        },
-    ]
+        }
+    )
+    return faq_items
 
 
 def _company_highlights() -> list[dict[str, str]]:
-    return [
-        {
-            "title": "Engenharia 360°",
-            "description": "Planejamento, modelagem ERP, memorial, implantação e suporte pós-start-up em um mesmo fluxo."},
-        {
-            "title": "Laboratório homologado",
-            "description": "Ensaios de VSWR, combinadores, filtros e validações ambientais garantem desempenho em campo."},
-        {
-            "title": "Stack numérica proprietária",
-            "description": "Ferramentas internas para parsing, composição e exportação (.PAT/.PRN/.PDF) com métricas HPBW, diretividade, SLL."},
-        {
-            "title": "Atendimento nacional",
-            "description": "26 anos de atuação, 700+ sistemas instalados e equipes residentes em 12 estados garantindo SLA."},
-        {
-            "title": "Integrações inteligentes",
-            "description": "Assistente IA, automação de exportações e webhooks WhatsApp agilizam tomada de decisão e suporte."},
-    ]
+    custom = []
+    for item in _block_list("highlights"):
+        title = (item.get("title") or "").strip()
+        if not title:
+            continue
+        custom.append(
+            {
+                "title": title,
+                "description": (item.get("description") or "").strip(),
+            }
+        )
+    if custom:
+        return custom
+    return [dict(item) for item in DEFAULT_HIGHLIGHTS]
 
 
 def _quick_answer(user_text: str, context: dict, kb_snippets: list[str] | None = None) -> tuple[str, list[dict[str, str]]]:
@@ -910,6 +1074,10 @@ def _wowslider_images(limit: int = 8) -> list[str]:
 
 
 def _institutional_gallery(limit: int = 6) -> list[dict]:
+    block_entries = _normalized_image_entries(_block_list("gallery"))
+    if block_entries:
+        return block_entries[:limit]
+
     project_root = Path(current_app.root_path).parent
     ima_root = project_root / "IMA"
     if not ima_root.is_dir():

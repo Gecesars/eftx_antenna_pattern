@@ -9,6 +9,8 @@ from typing import Iterable
 
 from flask import current_app, url_for
 
+from ..models import SiteDocument
+
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
 
 
@@ -91,6 +93,15 @@ def load_products_from_site(root: Path | None) -> list[dict]:
         return []
 
     image_root = _images_root(root)
+    documents_map = _documents_index()
+
+    def resolve_media(path: str | None) -> str | None:
+        if not path:
+            return None
+        if path.startswith(("http://", "https://", "/")):
+            return path
+        return url_for("public_site.site_asset", filename=path)
+
     products: list[ProductCard] = []
     local_fallbacks = _local_image_urls()
     fallback_iter = iter(local_fallbacks)
@@ -98,10 +109,22 @@ def load_products_from_site(root: Path | None) -> list[dict]:
 
     for pdf_path in sorted(docs_repo.glob("*.pdf"), key=lambda p: p.name.lower()):
         card = _product_from_pdf(pdf_path, site_root=root, image_root=image_root)
-        if card:
-            if not card.thumbnail_url:
-                card.thumbnail_url = next(fallback_iter, local_fallbacks[0] if local_fallbacks else static_fallback)
-            products.append(card)
+        if not card:
+            continue
+
+        doc_meta = documents_map.get(pdf_path.name.lower())
+        if doc_meta:
+            card = ProductCard(**doc_meta.apply_to_card(card.to_dict(), resolver=resolve_media))
+            extra = doc_meta.metadata_json or {}
+            override_url = extra.get("datasheet_url")
+            if override_url:
+                card.datasheet_url = override_url
+            if card.thumbnail_url:
+                card.thumbnail_url = resolve_media(card.thumbnail_url)
+
+        if not card.thumbnail_url:
+            card.thumbnail_url = next(fallback_iter, local_fallbacks[0] if local_fallbacks else static_fallback)
+        products.append(card)
 
     _logger().debug("Loaded %d product cards (docs=%s, images=%s)", len(products), docs_repo, image_root)
     return [product.to_dict() for product in products]
@@ -274,3 +297,19 @@ def _slugify(value: str) -> str:
     value = re.sub(r"[^a-z0-9]+", "-", value)
     value = re.sub(r"-+", "-", value).strip("-")
     return value or "produto"
+
+
+def _documents_index() -> dict[str, SiteDocument]:
+    try:
+        documents = SiteDocument.query.all()
+    except Exception:
+        return {}
+
+    index: dict[str, SiteDocument] = {}
+    for doc in documents:
+        filename = (doc.filename or "").lower()
+        if filename:
+            index[filename] = doc
+        slug = doc.slug.lower()
+        index.setdefault(slug, doc)
+    return index

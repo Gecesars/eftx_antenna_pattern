@@ -10,6 +10,8 @@ class BaseConfig:
     if not _SITE_MIRROR.is_dir():
         _SITE_MIRROR = None
 
+    PROJECT_ROOT = str(Path(__file__).resolve().parents[1])
+
     SECRET_KEY = os.getenv("SECRET_KEY", "changeme")
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
@@ -92,6 +94,7 @@ class BaseConfig:
         "COMPANY_MAP_EMBED",
         "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d918.4187471130787!2d-46.981851682980846!3d-22.962193779764863!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x94c8cd8a8bcf404d%3A0xdec6808ca80b75c6!2sR.%20Higyno%20Guilherme%20Costato%2C%20298%20-%20Jardim%20Pinheiros%2C%20Valinhos%20-%20SP%2C%2013274-410!5e0!3m2!1spt-BR!2sbr!4v1653476192489!5m2!1spt-BR!2sbr",
     )
+    SITE_UPLOAD_ROOT = os.getenv("SITE_UPLOAD_ROOT", "site_uploads")
 
 
 class DevelopmentConfig(BaseConfig):

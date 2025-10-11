@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('aplicativos_rf.static', filename='aplicativos_rf/app_rf.css') }}">
+{% endblock %}
+{% block content %}
+<div class="rf-doc-wrapper">
+    <article class="rf-card">
+        <header>
+            <h2>Documentação – Aplicativos de RF</h2>
+        </header>
+        <div class="rf-doc-body">{{ html|safe }}</div>
+        <div class="rf-actions" style="margin-top:1.5rem;">
+            <a class="btn-primary" href="{{ url_for('aplicativos_rf.index') }}">Voltar</a>
+        </div>
+    </article>
+</div>
+{% endblock %}

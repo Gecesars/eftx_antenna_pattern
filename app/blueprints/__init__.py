@@ -8,6 +8,7 @@ from .api.views import api_bp
 from .public.views import public_bp
 from .integrations_whatsapp.views import integrations_whatsapp_bp
 from .public_site.views import public_site_bp
+from .aplicativos_rf import aplicativos_rf_bp
 
 
 BLUEPRINTS = (
@@ -18,6 +19,7 @@ BLUEPRINTS = (
     public_bp,
     integrations_whatsapp_bp,
     public_site_bp,
+    aplicativos_rf_bp,
 )
 
 

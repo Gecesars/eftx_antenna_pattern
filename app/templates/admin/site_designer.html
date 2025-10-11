@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/site_designer.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="site-designer-page" data-site-designer>
+  <header class="designer-header">
+    <h1>Painel do Site Institucional</h1>
+    <p>Gerencie contatos, destaques, imagens e documentos exibidos no portal público.</p>
+    <div class="designer-actions">
+      <button type="button" class="btn" data-action="refresh">Recarregar estado</button>
+      <a class="btn" href="{{ url_for('public_site.home') }}" target="_blank" rel="noopener">Abrir site em nova aba</a>
+    </div>
+  </header>
+  <div class="designer-layout">
+    <aside class="designer-menu">
+      <h2>Seções</h2>
+      <nav>
+        <button type="button" data-section="contacts" class="menu-item is-active">Contatos & Redes</button>
+        <button type="button" data-section="hero" class="menu-item">Hero (texto & imagens)</button>
+        <button type="button" data-section="highlights" class="menu-item">Pilares & Destaques</button>
+        <button type="button" data-section="gallery" class="menu-item">Galeria</button>
+        <button type="button" data-section="faq" class="menu-item">FAQ</button>
+        <button type="button" data-section="documents" class="menu-item">Datasheets & Downloads</button>
+      </nav>
+      <div class="designer-help">
+        <p><strong>Dica:</strong> salve cada seção após editar. As mudanças ficam visíveis imediatamente no site público.</p>
+      </div>
+    </aside>
+
+    <section class="designer-editor">
+      <div class="status" aria-live="polite" data-status></div>
+      <div class="editor-content" data-editor></div>
+    </section>
+
+    <aside class="designer-preview" data-preview-container data-device="desktop">
+      <h2>Pré-visualização</h2>
+      <iframe data-preview title="Visão do site" src="{{ url_for('public_site.home') }}" loading="lazy"></iframe>
+      <div class="preview-links">
+        <button type="button" class="btn" data-action="reload-preview">Atualizar prévia</button>
+        <button type="button" class="btn is-secondary" data-action="toggle-device" title="Alternar visualização desktop/celular">
+          <span class="icon" aria-hidden="true"><i class="fas fa-mobile-alt"></i></span>
+          <span data-device-label>Ver como celular</span>
+        </button>
+        <div class="links">
+          <a href="{{ url_for('public_site.products') }}" target="_blank" rel="noopener">Ver catálogo</a>
+          <a href="{{ url_for('public_site.downloads') }}" target="_blank" rel="noopener">Ver downloads</a>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+<script>
+  window.SITE_DESIGNER_STATE = {{ state|tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/site_designer.js') }}" defer></script>
+{% endblock %}

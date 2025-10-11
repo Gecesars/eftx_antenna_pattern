@@ -328,3 +328,51 @@ class AssistantMessage(TimestampMixin, BaseModel):
     token_count: Mapped[int | None] = mapped_column(Integer)
 
     conversation: Mapped["AssistantConversation"] = relationship(back_populates="messages")
+
+
+class SiteContentBlock(TimestampMixin, BaseModel):
+    __tablename__ = "site_content_blocks"
+
+    slug: Mapped[str] = mapped_column(String(80), nullable=False, unique=True, index=True)
+    label: Mapped[str | None] = mapped_column(String(160))
+    data: Mapped[dict | None] = mapped_column(JSONB)
+    metadata_json: Mapped[dict | None] = mapped_column(JSONB)
+
+    def as_dict(self) -> dict:
+        return (self.data or {}).copy()
+
+
+class SiteDocument(TimestampMixin, BaseModel):
+    __tablename__ = "site_documents"
+
+    filename: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    display_name: Mapped[str | None] = mapped_column(String(255))
+    category: Mapped[str | None] = mapped_column(String(64))
+    description: Mapped[str | None] = mapped_column(Text)
+    tags: Mapped[list[str] | None] = mapped_column(JSONB)
+    thumbnail_path: Mapped[str | None] = mapped_column(String(255))
+    is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
+    metadata_json: Mapped[dict | None] = mapped_column(JSONB)
+
+    @property
+    def slug(self) -> str:
+        return (self.filename or "").rsplit("/", 1)[-1]
+
+    def apply_to_card(self, card: dict, resolver=None) -> dict:
+        card = dict(card)
+        if self.display_name:
+            card["name"] = self.display_name
+        if self.category:
+            card["category"] = self.category
+        if self.description:
+            card["description"] = self.description
+        if self.thumbnail_path:
+            if callable(resolver):
+                resolved = resolver(self.thumbnail_path)
+            else:
+                resolved = self.thumbnail_path
+            if resolved:
+                card["thumbnail_url"] = resolved
+        if metadata := (self.metadata_json or {}):
+            card.setdefault("metadata", {}).update(metadata)
+        return card
